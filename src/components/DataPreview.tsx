@@ -7,13 +7,15 @@ import {
   BarChart3, 
   AlertCircle,
   CheckCircle,
-  Settings
+  Settings,
+  Clock,
+  Activity
 } from 'lucide-react';
 import { ParsedData } from '../utils/csvParser';
 
 interface DataPreviewProps {
   data: ParsedData;
-  onNext: (outcomeVar: string, groupVar: string) => void;
+  onNext: (outcomeVar: string, groupVar: string, timeVar?: string, eventVar?: string) => void;
   onBack: () => void;
 }
 
@@ -21,12 +23,16 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onNext, onBack }) => {
   const [studyType, setStudyType] = useState('randomized_trial');
   const [outcomeVariable, setOutcomeVariable] = useState('');
   const [groupVariable, setGroupVariable] = useState('');
+  const [timeVariable, setTimeVariable] = useState('');
+  const [eventVariable, setEventVariable] = useState('');
 
   // Auto-detect likely variables
   React.useEffect(() => {
     // Look for common outcome variable names
     const outcomeKeywords = ['outcome', 'score', 'result', 'response', 'efficacy', 'effect'];
     const groupKeywords = ['treatment', 'group', 'condition', 'arm', 'therapy'];
+    const timeKeywords = ['time', 'duration', 'survival', 'follow', 'days', 'months', 'years'];
+    const eventKeywords = ['event', 'death', 'status', 'censor', 'died', 'dead'];
 
     const likelyOutcome = data.columns.find(col => 
       outcomeKeywords.some(keyword => col.toLowerCase().includes(keyword))
@@ -36,6 +42,14 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onNext, onBack }) => {
       groupKeywords.some(keyword => col.toLowerCase().includes(keyword))
     );
 
+    const likelyTime = data.columns.find(col => 
+      timeKeywords.some(keyword => col.toLowerCase().includes(keyword))
+    );
+
+    const likelyEvent = data.columns.find(col => 
+      eventKeywords.some(keyword => col.toLowerCase().includes(keyword))
+    );
+
     if (likelyOutcome && !outcomeVariable) {
       setOutcomeVariable(likelyOutcome);
     }
@@ -43,7 +57,15 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onNext, onBack }) => {
     if (likelyGroup && !groupVariable) {
       setGroupVariable(likelyGroup);
     }
-  }, [data.columns, outcomeVariable, groupVariable]);
+
+    if (likelyTime && !timeVariable) {
+      setTimeVariable(likelyTime);
+    }
+
+    if (likelyEvent && !eventVariable) {
+      setEventVariable(likelyEvent);
+    }
+  }, [data.columns, outcomeVariable, groupVariable, timeVariable, eventVariable]);
 
   const getColumnType = (columnName: string): string => {
     const sampleValues = data.preview.map(row => row[columnName]).filter(val => val != null);
@@ -118,10 +140,11 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onNext, onBack }) => {
   };
 
   const canProceed = outcomeVariable && groupVariable;
+  const isSurvivalAnalysis = timeVariable && eventVariable;
 
   const handleNext = () => {
     if (canProceed) {
-      onNext(outcomeVariable, groupVariable);
+      onNext(outcomeVariable, groupVariable, timeVariable || undefined, eventVariable || undefined);
     }
   };
 
@@ -212,10 +235,12 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onNext, onBack }) => {
             className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
           >
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Variable Selection</h3>
-            <div className="grid md:grid-cols-2 gap-6">
+            
+            {/* Primary Variables */}
+            <div className="grid md:grid-cols-2 gap-6 mb-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Outcome Variable (Dependent)
+                  Outcome Variable (Dependent) *
                 </label>
                 <select 
                   value={outcomeVariable}
@@ -234,7 +259,7 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onNext, onBack }) => {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Grouping Variable (Independent)
+                  Grouping Variable (Independent) *
                 </label>
                 <select 
                   value={groupVariable}
@@ -250,6 +275,65 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onNext, onBack }) => {
                   The variable that defines your groups
                 </p>
               </div>
+            </div>
+
+            {/* Survival Analysis Variables */}
+            <div className="border-t border-gray-200 pt-6">
+              <div className="flex items-center space-x-2 mb-4">
+                <Clock className="h-5 w-5 text-orange-600" />
+                <h4 className="text-md font-medium text-gray-900">Survival Analysis Variables (Optional)</h4>
+              </div>
+              <div className="grid md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Time Variable
+                  </label>
+                  <select 
+                    value={timeVariable}
+                    onChange={(e) => setTimeVariable(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  >
+                    <option value="">Select time variable...</option>
+                    {data.columns.map(col => (
+                      <option key={col} value={col}>{col}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Time to event (days, months, etc.)
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Event Variable
+                  </label>
+                  <select 
+                    value={eventVariable}
+                    onChange={(e) => setEventVariable(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  >
+                    <option value="">Select event variable...</option>
+                    {data.columns.map(col => (
+                      <option key={col} value={col}>{col}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Event occurrence (1/0, true/false, etc.)
+                  </p>
+                </div>
+              </div>
+              
+              {isSurvivalAnalysis && (
+                <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <Activity className="h-4 w-4 text-orange-600" />
+                    <span className="text-sm font-medium text-orange-800">Survival Analysis Detected</span>
+                  </div>
+                  <p className="text-xs text-orange-700 mt-1">
+                    Kaplan-Meier survival analysis will be available with these variables.
+                  </p>
+                </div>
+              )}
             </div>
           </motion.div>
         </div>
@@ -326,6 +410,9 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onNext, onBack }) => {
               )}
               {outcomeVariable && (
                 <p>• Detected outcome variable: {outcomeVariable}</p>
+              )}
+              {isSurvivalAnalysis && (
+                <p>• Survival analysis variables detected: {timeVariable} & {eventVariable}</p>
               )}
               <p>• Dataset appears suitable for statistical analysis</p>
               <p>• Sample size ({data.rows}) is adequate for most tests</p>

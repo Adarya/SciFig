@@ -29,6 +29,8 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate }) => {
   const [uploadedData, setUploadedData] = useState<ParsedData | null>(null);
   const [outcomeVariable, setOutcomeVariable] = useState<string>('');
   const [groupVariable, setGroupVariable] = useState<string>('');
+  const [timeVariable, setTimeVariable] = useState<string>('');
+  const [eventVariable, setEventVariable] = useState<string>('');
   const [analysisConfig, setAnalysisConfig] = useState<any>(null);
 
   const steps = [
@@ -60,6 +62,8 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate }) => {
     // Auto-detect variables
     const outcomeKeywords = ['outcome', 'score', 'result', 'response', 'efficacy', 'effect'];
     const groupKeywords = ['treatment', 'group', 'condition', 'arm', 'therapy'];
+    const timeKeywords = ['time', 'duration', 'survival', 'follow', 'days', 'months', 'years'];
+    const eventKeywords = ['event', 'death', 'status', 'censor', 'died', 'dead'];
 
     const likelyOutcome = data.columns.find(col => 
       outcomeKeywords.some(keyword => col.toLowerCase().includes(keyword))
@@ -69,15 +73,27 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate }) => {
       groupKeywords.some(keyword => col.toLowerCase().includes(keyword))
     );
 
+    const likelyTime = data.columns.find(col => 
+      timeKeywords.some(keyword => col.toLowerCase().includes(keyword))
+    );
+
+    const likelyEvent = data.columns.find(col => 
+      eventKeywords.some(keyword => col.toLowerCase().includes(keyword))
+    );
+
     if (likelyOutcome) setOutcomeVariable(likelyOutcome);
     if (likelyGroup) setGroupVariable(likelyGroup);
+    if (likelyTime) setTimeVariable(likelyTime);
+    if (likelyEvent) setEventVariable(likelyEvent);
     
     handleNext();
   };
 
-  const handlePreviewNext = (outcomeVar: string, groupVar: string) => {
+  const handlePreviewNext = (outcomeVar: string, groupVar: string, timeVar?: string, eventVar?: string) => {
     setOutcomeVariable(outcomeVar);
     setGroupVariable(groupVar);
+    setTimeVariable(timeVar || '');
+    setEventVariable(eventVar || '');
     handleNext();
   };
 
@@ -108,6 +124,8 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate }) => {
             data={uploadedData}
             outcomeVariable={outcomeVariable}
             groupVariable={groupVariable}
+            timeVariable={timeVariable}
+            eventVariable={eventVariable}
             onAnalysisSelected={handleAnalysisSelected}
             onBack={handleBack}
           />
@@ -123,6 +141,8 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate }) => {
               setAnalysisConfig(null);
               setOutcomeVariable('');
               setGroupVariable('');
+              setTimeVariable('');
+              setEventVariable('');
             }}
           />
         ) : null;

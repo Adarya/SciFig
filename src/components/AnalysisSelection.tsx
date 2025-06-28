@@ -19,6 +19,8 @@ interface AnalysisSelectionProps {
   data: ParsedData;
   outcomeVariable: string;
   groupVariable: string;
+  timeVariable?: string;
+  eventVariable?: string;
   onAnalysisSelected: (config: any) => void;
   onBack: () => void;
 }
@@ -27,6 +29,8 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
   data, 
   outcomeVariable, 
   groupVariable, 
+  timeVariable,
+  eventVariable,
   onAnalysisSelected, 
   onBack 
 }) => {
@@ -58,6 +62,20 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
   // Build analysis recommendations based on data types
   const getRecommendedAnalyses = () => {
     const analyses = [];
+
+    // Check for survival analysis first
+    if (timeVariable && eventVariable) {
+      analyses.push({
+        id: 'kaplan_meier',
+        name: 'Kaplan-Meier Survival Analysis',
+        description: `Analyze time-to-event data with survival curves`,
+        reason: 'Time and event variables detected',
+        icon: Clock,
+        assumptions: ['Censoring is non-informative'],
+        effectSize: 'Median survival time',
+        recommended: true
+      });
+    }
 
     if (outcomeType === 'continuous' && groupType === 'categorical') {
       if (nGroups === 2) {
@@ -141,39 +159,6 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
       }
     }
 
-    // Survival analysis (if time-related columns detected)
-    const timeColumns = data.columns.filter(col => 
-      col.toLowerCase().includes('time') || 
-      col.toLowerCase().includes('duration') ||
-      col.toLowerCase().includes('survival') ||
-      col.toLowerCase().includes('follow')
-    );
-
-    const eventColumns = data.columns.filter(col => 
-      col.toLowerCase().includes('event') || 
-      col.toLowerCase().includes('death') ||
-      col.toLowerCase().includes('status') ||
-      col.toLowerCase().includes('censor')
-    );
-
-    if (timeColumns.length > 0 || eventColumns.length > 0) {
-      analyses.push({
-        id: 'kaplan_meier',
-        name: 'Kaplan-Meier Survival Analysis',
-        description: 'Time-to-event analysis with survival curves',
-        icon: Clock,
-        assumptions: ['Censoring is non-informative']
-      });
-
-      analyses.push({
-        id: 'cox_regression',
-        name: 'Cox Proportional Hazards',
-        description: 'Survival analysis with covariates',
-        icon: TrendingUp,
-        assumptions: ['Proportional hazards']
-      });
-    }
-
     return analyses;
   };
 
@@ -189,6 +174,8 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
       naturalLanguageQuery,
       outcomeVariable,
       groupVariable,
+      timeVariable,
+      eventVariable,
       data: data.data,
       outcomeType,
       groupType
@@ -391,9 +378,15 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
                   <h4 className="font-medium text-gray-900 mb-2">Groups</h4>
                   <p className="text-sm text-gray-600">{groups.join(', ')}</p>
                 </div>
+                {timeVariable && eventVariable && (
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-2">Survival Variables</h4>
+                    <p className="text-sm text-gray-600">Time: {timeVariable}, Event: {eventVariable}</p>
+                  </div>
+                )}
                 <div>
                   <h4 className="font-medium text-gray-900 mb-2">Power Analysis</h4>
-                  <p className="text-sm text-green-600">✓ Adequate power ({'>'} 80%)</p>
+                  <p className="text-sm text-green-600">✓ Adequate power ({'>'}80%)</p>
                 </div>
               </div>
             )}
@@ -409,7 +402,15 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
             <div className="space-y-3 text-sm text-gray-700">
               <p>Based on your data structure:</p>
               <ul className="space-y-1 ml-4">
-                {outcomeType === 'continuous' && groupType === 'categorical' && (
+                {timeVariable && eventVariable && (
+                  <>
+                    <li>• Kaplan-Meier survival analysis is most appropriate</li>
+                    <li>• Time-to-event data detected</li>
+                    <li>• Survival curves will show probability over time</li>
+                    <li>• Log-rank test for group comparisons</li>
+                  </>
+                )}
+                {outcomeType === 'continuous' && groupType === 'categorical' && !timeVariable && (
                   <>
                     <li>• {nGroups === 2 ? 'Independent T-test' : 'One-way ANOVA'} is most appropriate</li>
                     <li>• Sample size is adequate for reliable results</li>

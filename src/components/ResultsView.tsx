@@ -11,7 +11,8 @@ import {
   Settings,
   CheckCircle,
   AlertTriangle,
-  Loader
+  Loader,
+  Edit3
 } from 'lucide-react';
 import { EngineOrchestrator, AnalysisWorkflow, StatisticalResult } from '../utils/statisticalEngine';
 import { FigureGenerator } from '../utils/figureGenerator';
@@ -29,6 +30,14 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
   const [analysisResults, setAnalysisResults] = useState<AnalysisWorkflow | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Custom labels state
+  const [customLabels, setCustomLabels] = useState({
+    x: '',
+    y: '',
+    title: ''
+  });
+  const [showLabelEditor, setShowLabelEditor] = useState(false);
 
   useEffect(() => {
     runAnalysis();
@@ -59,7 +68,9 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
         results = orchestrator.runAnalysis(
           analysisConfig.data,
           analysisConfig.outcomeVariable,
-          analysisConfig.groupVariable
+          analysisConfig.groupVariable,
+          analysisConfig.timeVariable,
+          analysisConfig.eventVariable
         );
       }
       
@@ -119,13 +130,20 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
     const result = analysisResults.final_result as StatisticalResult;
     
     try {
+      const labels = {
+        x: customLabels.x || undefined,
+        y: customLabels.y || undefined,
+        title: customLabels.title || undefined
+      };
+
       if (result.test_name.includes('T-Test') || result.test_name.includes('Mann-Whitney')) {
         return FigureGenerator.generateBoxPlot(
           analysisConfig.data,
           analysisConfig.groupVariable,
           analysisConfig.outcomeVariable,
           result,
-          figureStyle
+          figureStyle,
+          labels
         );
       } else if (result.test_name.includes('ANOVA') || result.test_name.includes('Kruskal')) {
         return FigureGenerator.generateBarPlot(
@@ -133,17 +151,19 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
           analysisConfig.groupVariable,
           analysisConfig.outcomeVariable,
           result,
-          figureStyle
+          figureStyle,
+          labels
         );
       } else if (result.test_name.includes('Chi-Square') || result.test_name.includes('Fisher')) {
         return FigureGenerator.generateContingencyHeatmap(
           result,
           analysisConfig.groupVariable,
           analysisConfig.outcomeVariable,
-          figureStyle
+          figureStyle,
+          labels
         );
       } else if (result.test_name.includes('Survival') || result.test_name.includes('Kaplan-Meier')) {
-        return FigureGenerator.generateSurvivalCurve(result, figureStyle);
+        return FigureGenerator.generateSurvivalCurve(result, figureStyle, labels);
       }
     } catch (err) {
       console.error('Figure generation error:', err);
@@ -301,6 +321,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
                         </div>
                       );
                     })}
+                
                   </div>
                 </div>
               )}
@@ -315,18 +336,66 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
                 className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
               >
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-semibold text-gray-900">Generated Figure</h3>
-                  <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
-                    Download
-                  </button>
+                  <h3 className="text-xl font-semibold text-gray-900">Publication-Ready Figure</h3>
+                  <div className="flex items-center space-x-2">
+                    <button 
+                      onClick={() => setShowLabelEditor(!showLabelEditor)}
+                      className="bg-gray-100 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors flex items-center space-x-2"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                      <span>Edit Labels</span>
+                    </button>
+                    <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+                      Download
+                    </button>
+                  </div>
                 </div>
+
+                {/* Label Editor */}
+                {showLabelEditor && (
+                  <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                    <h4 className="font-medium text-gray-900 mb-3">Customize Labels</h4>
+                    <div className="grid md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">X-axis Label</label>
+                        <input
+                          type="text"
+                          value={customLabels.x}
+                          onChange={(e) => setCustomLabels(prev => ({ ...prev, x: e.target.value }))}
+                          placeholder="e.g., Treatment Group"
+                          className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Y-axis Label</label>
+                        <input
+                          type="text"
+                          value={customLabels.y}
+                          onChange={(e) => setCustomLabels(prev => ({ ...prev, y: e.target.value }))}
+                          placeholder="e.g., Response Score"
+                          className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                        <input
+                          type="text"
+                          value={customLabels.title}
+                          onChange={(e) => setCustomLabels(prev => ({ ...prev, title: e.target.value }))}
+                          placeholder="e.g., Treatment Efficacy"
+                          className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
                 
                 <div className="bg-gray-50 rounded-lg p-4">
                   <Plot
                     data={figure.data}
                     layout={figure.layout}
                     config={figure.config}
-                    style={{ width: '100%', height: '400px' }}
+                    style={{ width: '100%', height: '500px' }}
                   />
                 </div>
               </motion.div>

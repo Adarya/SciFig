@@ -14,21 +14,72 @@ export interface PlotlyData {
   pointpos?: number;
   text?: string[];
   hovertemplate?: string;
+  error_y?: any;
 }
 
 export interface PlotlyLayout {
-  title: string;
+  title: {
+    text: string;
+    font: {
+      size: number;
+      family: string;
+      color: string;
+    };
+    x: number;
+  };
   xaxis: {
-    title: string;
+    title: {
+      text: string;
+      font: {
+        size: number;
+        family: string;
+        color: string;
+      };
+    };
     showgrid: boolean;
+    gridcolor: string;
+    linecolor: string;
+    linewidth: number;
+    tickfont: {
+      size: number;
+      family: string;
+      color: string;
+    };
     type?: string;
   };
   yaxis: {
-    title: string;
+    title: {
+      text: string;
+      font: {
+        size: number;
+        family: string;
+        color: string;
+      };
+    };
     showgrid: boolean;
+    gridcolor: string;
+    linecolor: string;
+    linewidth: number;
+    tickfont: {
+      size: number;
+      family: string;
+      color: string;
+    };
     type?: string;
   };
   showlegend: boolean;
+  legend?: {
+    x: number;
+    y: number;
+    bgcolor: string;
+    bordercolor: string;
+    borderwidth: number;
+    font: {
+      size: number;
+      family: string;
+      color: string;
+    };
+  };
   plot_bgcolor: string;
   paper_bgcolor: string;
   font: {
@@ -37,11 +88,26 @@ export interface PlotlyLayout {
     color: string;
   };
   annotations?: any[];
+  margin: {
+    l: number;
+    r: number;
+    t: number;
+    b: number;
+  };
+  width?: number;
+  height?: number;
 }
 
 export interface FigureConfig {
   displayModeBar: boolean;
   responsive: boolean;
+  toImageButtonOptions: {
+    format: string;
+    filename: string;
+    height: number;
+    width: number;
+    scale: number;
+  };
 }
 
 export class FigureGenerator {
@@ -50,7 +116,8 @@ export class FigureGenerator {
     groupVar: string,
     valueVar: string,
     result: StatisticalResult,
-    style: string = 'nature'
+    style: string = 'nature',
+    customLabels?: { x?: string; y?: string; title?: string }
   ): { data: PlotlyData[]; layout: PlotlyLayout; config: FigureConfig } {
     const groups = [...new Set(data.map(row => row[groupVar]))];
     const colors = this.getColorScheme(style);
@@ -66,76 +133,158 @@ export class FigureGenerator {
         type: 'box',
         name: String(group),
         marker: {
-          color: colors[index % colors.length]
+          color: colors[index % colors.length],
+          size: 8,
+          line: {
+            color: '#000',
+            width: 1
+          }
         },
         boxpoints: 'outliers',
         jitter: 0.3,
-        pointpos: -1.8
+        pointpos: -1.8,
+        line: {
+          color: '#000',
+          width: 2
+        }
       };
     });
 
-    // Add statistical annotation
+    // Add statistical annotation for significance
     const annotations = [];
     if (result.p_value < 0.05) {
       const maxY = Math.max(...data.map(row => Number(row[valueVar])).filter(val => !isNaN(val)));
       const significance = result.p_value < 0.001 ? '***' : result.p_value < 0.01 ? '**' : '*';
       
-      annotations.push({
-        x: 0.5,
-        y: maxY * 1.1,
-        xref: 'paper',
-        yref: 'y',
-        text: significance,
-        showarrow: false,
-        font: { size: 16, color: '#000' }
-      });
-
-      // Add connecting line for significance
+      // Add significance line
       annotations.push({
         x: 0.2,
-        y: maxY * 1.05,
+        y: maxY * 1.15,
         xref: 'paper',
         yref: 'y',
         text: '',
         showarrow: true,
         arrowhead: 0,
         arrowsize: 1,
-        arrowwidth: 2,
+        arrowwidth: 3,
         arrowcolor: '#000',
         ax: 0.8,
         ay: 0,
         axref: 'paper',
         ayref: 'y'
       });
+
+      // Add significance stars
+      annotations.push({
+        x: 0.5,
+        y: maxY * 1.18,
+        xref: 'paper',
+        yref: 'y',
+        text: significance,
+        showarrow: false,
+        font: { 
+          size: 18, 
+          color: '#000',
+          family: this.getFontFamily(style)
+        }
+      });
+
+      // Add p-value
+      annotations.push({
+        x: 0.5,
+        y: maxY * 1.25,
+        xref: 'paper',
+        yref: 'y',
+        text: `p = ${result.p_value.toFixed(3)}`,
+        showarrow: false,
+        font: { 
+          size: 14, 
+          color: '#000',
+          family: this.getFontFamily(style)
+        }
+      });
     }
 
     const layout: PlotlyLayout = {
-      title: `${valueVar} by ${groupVar}`,
+      title: {
+        text: customLabels?.title || this.cleanVariableName(valueVar),
+        font: {
+          size: 20,
+          family: this.getFontFamily(style),
+          color: '#000'
+        },
+        x: 0.5
+      },
       xaxis: {
-        title: groupVar,
-        showgrid: false
+        title: {
+          text: customLabels?.x || this.cleanVariableName(groupVar),
+          font: {
+            size: 16,
+            family: this.getFontFamily(style),
+            color: '#000'
+          }
+        },
+        showgrid: false,
+        gridcolor: '#E5E5E5',
+        linecolor: '#000',
+        linewidth: 2,
+        tickfont: {
+          size: 14,
+          family: this.getFontFamily(style),
+          color: '#000'
+        }
       },
       yaxis: {
-        title: valueVar,
-        showgrid: true
+        title: {
+          text: customLabels?.y || this.cleanVariableName(valueVar),
+          font: {
+            size: 16,
+            family: this.getFontFamily(style),
+            color: '#000'
+          }
+        },
+        showgrid: true,
+        gridcolor: '#E5E5E5',
+        linecolor: '#000',
+        linewidth: 2,
+        tickfont: {
+          size: 14,
+          family: this.getFontFamily(style),
+          color: '#000'
+        }
       },
       showlegend: false,
       plot_bgcolor: 'white',
       paper_bgcolor: 'white',
       font: {
         family: this.getFontFamily(style),
-        size: 12,
+        size: 14,
         color: '#000'
       },
-      annotations
+      annotations,
+      margin: {
+        l: 80,
+        r: 40,
+        t: 100,
+        b: 80
+      },
+      width: 600,
+      height: 500
     };
 
     return {
       data: plotData,
       layout,
       config: {
-        displayModeBar: false,
-        responsive: true
+        displayModeBar: true,
+        responsive: true,
+        toImageButtonOptions: {
+          format: 'png',
+          filename: 'figure',
+          height: 500,
+          width: 600,
+          scale: 3
+        }
       }
     };
   }
@@ -145,7 +294,8 @@ export class FigureGenerator {
     groupVar: string,
     valueVar: string,
     result: StatisticalResult,
-    style: string = 'nature'
+    style: string = 'nature',
+    customLabels?: { x?: string; y?: string; title?: string }
   ): { data: PlotlyData[]; layout: PlotlyLayout; config: FigureConfig } {
     const groups = [...new Set(data.map(row => row[groupVar]))];
     const colors = this.getColorScheme(style);
@@ -169,41 +319,101 @@ export class FigureGenerator {
       y: groupStats.map(stat => stat.mean),
       type: 'bar',
       marker: {
-        color: colors[0]
+        color: colors[0],
+        line: {
+          color: '#000',
+          width: 2
+        }
       },
       error_y: {
         type: 'data',
         array: groupStats.map(stat => stat.standardError),
-        visible: true
+        visible: true,
+        color: '#000',
+        thickness: 2,
+        width: 8
       }
     }];
 
     const layout: PlotlyLayout = {
-      title: `Mean ${valueVar} by ${groupVar}`,
+      title: {
+        text: customLabels?.title || `Mean ${this.cleanVariableName(valueVar)}`,
+        font: {
+          size: 20,
+          family: this.getFontFamily(style),
+          color: '#000'
+        },
+        x: 0.5
+      },
       xaxis: {
-        title: groupVar,
-        showgrid: false
+        title: {
+          text: customLabels?.x || this.cleanVariableName(groupVar),
+          font: {
+            size: 16,
+            family: this.getFontFamily(style),
+            color: '#000'
+          }
+        },
+        showgrid: false,
+        gridcolor: '#E5E5E5',
+        linecolor: '#000',
+        linewidth: 2,
+        tickfont: {
+          size: 14,
+          family: this.getFontFamily(style),
+          color: '#000'
+        }
       },
       yaxis: {
-        title: `Mean ${valueVar}`,
-        showgrid: true
+        title: {
+          text: customLabels?.y || `Mean ${this.cleanVariableName(valueVar)}`,
+          font: {
+            size: 16,
+            family: this.getFontFamily(style),
+            color: '#000'
+          }
+        },
+        showgrid: true,
+        gridcolor: '#E5E5E5',
+        linecolor: '#000',
+        linewidth: 2,
+        tickfont: {
+          size: 14,
+          family: this.getFontFamily(style),
+          color: '#000'
+        }
       },
       showlegend: false,
       plot_bgcolor: 'white',
       paper_bgcolor: 'white',
       font: {
         family: this.getFontFamily(style),
-        size: 12,
+        size: 14,
         color: '#000'
-      }
+      },
+      margin: {
+        l: 80,
+        r: 40,
+        t: 100,
+        b: 80
+      },
+      width: 600,
+      height: 500
     };
 
     return {
       data: plotData,
       layout,
       config: {
-        displayModeBar: false,
-        responsive: true
+        displayModeBar: true,
+        responsive: true,
+        toImageButtonOptions: {
+          format: 'png',
+          filename: 'figure',
+          height: 500,
+          width: 600,
+          scale: 3
+        }
       }
     };
   }
@@ -212,7 +422,8 @@ export class FigureGenerator {
     result: StatisticalResult,
     groupVar: string,
     outcomeVar: string,
-    style: string = 'nature'
+    style: string = 'nature',
+    customLabels?: { x?: string; y?: string; title?: string }
   ): { data: PlotlyData[]; layout: PlotlyLayout; config: FigureConfig } {
     if (!result.contingency_table) {
       throw new Error('No contingency table data available');
@@ -226,7 +437,8 @@ export class FigureGenerator {
       z: contingencyTable,
       type: 'heatmap',
       colorscale: [
-        [0, '#f7f7f7'],
+        [0, '#ffffff'],
+        [0.5, colors[0] + '80'],
         [1, colors[0]]
       ],
       showscale: true,
@@ -234,43 +446,101 @@ export class FigureGenerator {
         row.map(cell => cell.toString())
       ),
       texttemplate: '%{text}',
-      textfont: { size: 14, color: 'white' },
+      textfont: { 
+        size: 16, 
+        color: '#000',
+        family: this.getFontFamily(style)
+      },
       hovertemplate: 'Count: %{z}<extra></extra>'
     }];
 
     const layout: PlotlyLayout = {
-      title: `Contingency Table: ${outcomeVar} vs ${groupVar}`,
+      title: {
+        text: customLabels?.title || `${this.cleanVariableName(outcomeVar)} vs ${this.cleanVariableName(groupVar)}`,
+        font: {
+          size: 20,
+          family: this.getFontFamily(style),
+          color: '#000'
+        },
+        x: 0.5
+      },
       xaxis: {
-        title: outcomeVar,
-        showgrid: false
+        title: {
+          text: customLabels?.x || this.cleanVariableName(outcomeVar),
+          font: {
+            size: 16,
+            family: this.getFontFamily(style),
+            color: '#000'
+          }
+        },
+        showgrid: false,
+        gridcolor: '#E5E5E5',
+        linecolor: '#000',
+        linewidth: 2,
+        tickfont: {
+          size: 14,
+          family: this.getFontFamily(style),
+          color: '#000'
+        }
       },
       yaxis: {
-        title: groupVar,
-        showgrid: false
+        title: {
+          text: customLabels?.y || this.cleanVariableName(groupVar),
+          font: {
+            size: 16,
+            family: this.getFontFamily(style),
+            color: '#000'
+          }
+        },
+        showgrid: false,
+        gridcolor: '#E5E5E5',
+        linecolor: '#000',
+        linewidth: 2,
+        tickfont: {
+          size: 14,
+          family: this.getFontFamily(style),
+          color: '#000'
+        }
       },
       showlegend: false,
       plot_bgcolor: 'white',
       paper_bgcolor: 'white',
       font: {
         family: this.getFontFamily(style),
-        size: 12,
+        size: 14,
         color: '#000'
-      }
+      },
+      margin: {
+        l: 80,
+        r: 40,
+        t: 100,
+        b: 80
+      },
+      width: 600,
+      height: 500
     };
 
     return {
       data: plotData,
       layout,
       config: {
-        displayModeBar: false,
-        responsive: true
+        displayModeBar: true,
+        responsive: true,
+        toImageButtonOptions: {
+          format: 'png',
+          filename: 'figure',
+          height: 500,
+          width: 600,
+          scale: 3
+        }
       }
     };
   }
 
   static generateSurvivalCurve(
     result: StatisticalResult,
-    style: string = 'nature'
+    style: string = 'nature',
+    customLabels?: { x?: string; y?: string; title?: string }
   ): { data: PlotlyData[]; layout: PlotlyLayout; config: FigureConfig } {
     if (!result.survival_data) {
       throw new Error('No survival data available');
@@ -324,39 +594,104 @@ export class FigureGenerator {
         name: group,
         line: {
           color: colors[groupIndex % colors.length],
-          width: 3,
+          width: 4,
           shape: 'hv' // Step function
         }
       });
     });
 
     const layout: PlotlyLayout = {
-      title: 'Kaplan-Meier Survival Curves',
+      title: {
+        text: customLabels?.title || 'Kaplan-Meier Survival Curves',
+        font: {
+          size: 20,
+          family: this.getFontFamily(style),
+          color: '#000'
+        },
+        x: 0.5
+      },
       xaxis: {
-        title: 'Time',
-        showgrid: true
+        title: {
+          text: customLabels?.x || 'Time',
+          font: {
+            size: 16,
+            family: this.getFontFamily(style),
+            color: '#000'
+          }
+        },
+        showgrid: true,
+        gridcolor: '#E5E5E5',
+        linecolor: '#000',
+        linewidth: 2,
+        tickfont: {
+          size: 14,
+          family: this.getFontFamily(style),
+          color: '#000'
+        }
       },
       yaxis: {
-        title: 'Survival Probability',
+        title: {
+          text: customLabels?.y || 'Survival Probability',
+          font: {
+            size: 16,
+            family: this.getFontFamily(style),
+            color: '#000'
+          }
+        },
         showgrid: true,
+        gridcolor: '#E5E5E5',
+        linecolor: '#000',
+        linewidth: 2,
+        tickfont: {
+          size: 14,
+          family: this.getFontFamily(style),
+          color: '#000'
+        },
         type: 'linear'
       },
       showlegend: uniqueGroups.length > 1,
+      legend: uniqueGroups.length > 1 ? {
+        x: 0.7,
+        y: 0.9,
+        bgcolor: 'rgba(255,255,255,0.8)',
+        bordercolor: '#000',
+        borderwidth: 1,
+        font: {
+          size: 14,
+          family: this.getFontFamily(style),
+          color: '#000'
+        }
+      } : undefined,
       plot_bgcolor: 'white',
       paper_bgcolor: 'white',
       font: {
         family: this.getFontFamily(style),
-        size: 12,
+        size: 14,
         color: '#000'
-      }
+      },
+      margin: {
+        l: 80,
+        r: 40,
+        t: 100,
+        b: 80
+      },
+      width: 600,
+      height: 500
     };
 
     return {
       data: plotData,
       layout,
       config: {
-        displayModeBar: false,
-        responsive: true
+        displayModeBar: true,
+        responsive: true,
+        toImageButtonOptions: {
+          format: 'png',
+          filename: 'figure',
+          height: 500,
+          width: 600,
+          scale: 3
+        }
       }
     };
   }
@@ -365,7 +700,8 @@ export class FigureGenerator {
     data: any[],
     xVar: string,
     yVar: string,
-    style: string = 'nature'
+    style: string = 'nature',
+    customLabels?: { x?: string; y?: string; title?: string }
   ): { data: PlotlyData[]; layout: PlotlyLayout; config: FigureConfig } {
     const colors = this.getColorScheme(style);
     
@@ -376,39 +712,104 @@ export class FigureGenerator {
       mode: 'markers',
       marker: {
         color: colors[0],
-        size: 8,
-        opacity: 0.7
+        size: 10,
+        opacity: 0.7,
+        line: {
+          color: '#000',
+          width: 1
+        }
       }
     }];
 
     const layout: PlotlyLayout = {
-      title: `${yVar} vs ${xVar}`,
+      title: {
+        text: customLabels?.title || `${this.cleanVariableName(yVar)} vs ${this.cleanVariableName(xVar)}`,
+        font: {
+          size: 20,
+          family: this.getFontFamily(style),
+          color: '#000'
+        },
+        x: 0.5
+      },
       xaxis: {
-        title: xVar,
-        showgrid: true
+        title: {
+          text: customLabels?.x || this.cleanVariableName(xVar),
+          font: {
+            size: 16,
+            family: this.getFontFamily(style),
+            color: '#000'
+          }
+        },
+        showgrid: true,
+        gridcolor: '#E5E5E5',
+        linecolor: '#000',
+        linewidth: 2,
+        tickfont: {
+          size: 14,
+          family: this.getFontFamily(style),
+          color: '#000'
+        }
       },
       yaxis: {
-        title: yVar,
-        showgrid: true
+        title: {
+          text: customLabels?.y || this.cleanVariableName(yVar),
+          font: {
+            size: 16,
+            family: this.getFontFamily(style),
+            color: '#000'
+          }
+        },
+        showgrid: true,
+        gridcolor: '#E5E5E5',
+        linecolor: '#000',
+        linewidth: 2,
+        tickfont: {
+          size: 14,
+          family: this.getFontFamily(style),
+          color: '#000'
+        }
       },
       showlegend: false,
       plot_bgcolor: 'white',
       paper_bgcolor: 'white',
       font: {
         family: this.getFontFamily(style),
-        size: 12,
+        size: 14,
         color: '#000'
-      }
+      },
+      margin: {
+        l: 80,
+        r: 40,
+        t: 100,
+        b: 80
+      },
+      width: 600,
+      height: 500
     };
 
     return {
       data: plotData,
       layout,
       config: {
-        displayModeBar: false,
-        responsive: true
+        displayModeBar: true,
+        responsive: true,
+        toImageButtonOptions: {
+          format: 'png',
+          filename: 'figure',
+          height: 500,
+          width: 600,
+          scale: 3
+        }
       }
     };
+  }
+
+  private static cleanVariableName(varName: string): string {
+    return varName
+      .replace(/_/g, ' ')
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/\b\w/g, l => l.toUpperCase())
+      .trim();
   }
 
   private static getColorScheme(style: string): string[] {

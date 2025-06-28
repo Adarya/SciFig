@@ -8,6 +8,8 @@ export interface DataProfile {
   outcome_variable: string;
   outcome_type: 'continuous' | 'categorical';
   group_variable?: string;
+  time_variable?: string;
+  event_variable?: string;
   is_paired: boolean;
   variables: string[];
   n_groups?: number;
@@ -73,6 +75,8 @@ export class DataProfiler {
     data: any[],
     outcomeVar: string,
     groupVar?: string,
+    timeVar?: string,
+    eventVar?: string,
     isPaired: boolean = false
   ): DataProfile {
     if (data.length === 0) {
@@ -94,6 +98,8 @@ export class DataProfiler {
       outcome_variable: outcomeVar,
       outcome_type: outcomeType,
       group_variable: groupVar,
+      time_variable: timeVar,
+      event_variable: eventVar,
       is_paired: isPaired,
       variables: Object.keys(firstRow)
     };
@@ -225,7 +231,7 @@ export class CoreCalculations {
     const cohensD = (mean1 - mean2) / pooledStd;
 
     // Approximate p-value using t-distribution
-    const pValue = this.calculateTTestPValue(Math.abs(tStat), df);
+    const pValue = CoreCalculations.calculateTTestPValue(Math.abs(tStat), df);
 
     // 95% Confidence interval for difference
     const tCritical = 2.0; // Approximation for 95% CI
@@ -302,7 +308,7 @@ export class CoreCalculations {
     const meanU = (n1 * n2) / 2;
     const stdU = Math.sqrt((n1 * n2 * (n1 + n2 + 1)) / 12);
     const z = (U - meanU) / stdU;
-    const pValue = 2 * (1 - this.normalCDF(Math.abs(z)));
+    const pValue = 2 * (1 - CoreCalculations.normalCDF(Math.abs(z)));
 
     return {
       test_name: 'Mann-Whitney U Test',
@@ -367,7 +373,7 @@ export class CoreCalculations {
     const fStat = msBetween / msWithin;
 
     // Approximate p-value
-    const pValue = this.calculateFTestPValue(fStat, dfBetween, dfWithin);
+    const pValue = CoreCalculations.calculateFTestPValue(fStat, dfBetween, dfWithin);
 
     // Eta-squared (effect size)
     const etaSquared = ssBetween / (ssBetween + ssWithin);
@@ -436,7 +442,7 @@ export class CoreCalculations {
     }
 
     const df = (groups.length - 1) * (outcomes.length - 1);
-    const pValue = this.calculateChiSquarePValue(chiSquare, df);
+    const pValue = CoreCalculations.calculateChiSquarePValue(chiSquare, df);
 
     // Cramér's V (effect size)
     const cramersV = Math.sqrt(chiSquare / (grandTotal * Math.min(groups.length - 1, outcomes.length - 1)));
@@ -480,8 +486,7 @@ export class CoreCalculations {
     const oddsRatio = (a * d) / (b * c);
 
     // Simplified p-value calculation (hypergeometric distribution approximation)
-    const n = a + b + c + d;
-    const pValue = this.calculateFisherExactPValue(a, b, c, d);
+    const pValue = CoreCalculations.calculateFisherExactPValue(a, b, c, d);
 
     return {
       test_name: "Fisher's Exact Test",
@@ -537,15 +542,15 @@ export class CoreCalculations {
     }
 
     // Log-rank test p-value (simplified)
-    const pValue = groupVar ? this.calculateLogRankPValue(survivalData, groupVar) : 1.0;
+    const pValue = groupVar ? CoreCalculations.calculateLogRankPValue(survivalData, groupVar) : 1.0;
 
     return {
       test_name: 'Kaplan-Meier Survival Analysis',
       statistic: {
-        median_survival: this.calculateMedianSurvival(survivalCurve)
+        median_survival: CoreCalculations.calculateMedianSurvival(survivalCurve)
       },
       p_value: pValue,
-      summary: `Median survival = ${this.calculateMedianSurvival(survivalCurve).toFixed(1)} time units`,
+      summary: `Median survival = ${CoreCalculations.calculateMedianSurvival(survivalCurve).toFixed(1)} time units`,
       survival_data: {
         times,
         events,
@@ -558,7 +563,7 @@ export class CoreCalculations {
   private static calculateTTestPValue(tStat: number, df: number): number {
     // Simplified p-value calculation
     if (df >= 30) {
-      return 2 * (1 - this.normalCDF(tStat));
+      return 2 * (1 - CoreCalculations.normalCDF(tStat));
     }
     // For smaller df, use approximation
     const factor = 1 + (tStat * tStat) / df;
@@ -602,7 +607,7 @@ export class CoreCalculations {
     const expected1 = totalEvents * data.filter(d => d.group === groups[0]).length / data.length;
     const chiSq = Math.pow(group1Events - expected1, 2) / expected1;
     
-    return this.calculateChiSquarePValue(chiSq, 1);
+    return CoreCalculations.calculateChiSquarePValue(chiSq, 1);
   }
 
   private static calculateMedianSurvival(curve: { time: number; survival: number }[]): number {
@@ -612,7 +617,7 @@ export class CoreCalculations {
 
   private static normalCDF(x: number): number {
     // Approximation of normal CDF
-    return 0.5 * (1 + this.erf(x / Math.sqrt(2)));
+    return 0.5 * (1 + CoreCalculations.erf(x / Math.sqrt(2)));
   }
 
   private static erf(x: number): number {
@@ -652,6 +657,16 @@ export class StatisticalValidator {
     // Chi-square validation
     if (testName.includes('chi_square') && dataProfile.outcome_type !== 'categorical') {
       issues.push('Chi-square test requires categorical outcome variable');
+    }
+
+    // Kaplan-Meier validation
+    if (testName.includes('kaplan_meier')) {
+      if (!dataProfile.time_variable) {
+        issues.push('Kaplan-Meier analysis requires a time variable');
+      }
+      if (!dataProfile.event_variable) {
+        issues.push('Kaplan-Meier analysis requires an event variable');
+      }
     }
 
     // Sample size warnings
@@ -708,6 +723,11 @@ export class StatisticalBrain {
   recommendTest(dataProfile: DataProfile): { primary: string; alternative: string } {
     const { outcome_type, n_groups } = dataProfile;
 
+    // Check for survival analysis first
+    if (dataProfile.time_variable && dataProfile.event_variable) {
+      return { primary: 'kaplan_meier', alternative: 'kaplan_meier' };
+    }
+
     if (outcome_type === 'continuous') {
       if (n_groups === 2) {
         return { primary: 'independent_ttest', alternative: 'mann_whitney_u' };
@@ -736,13 +756,15 @@ export class EngineOrchestrator {
   runAnalysis(
     data: any[],
     outcomeVar: string,
-    groupVar: string
+    groupVar?: string,
+    timeVar?: string,
+    eventVar?: string
   ): AnalysisWorkflow {
     const workflowTrace: Partial<AnalysisWorkflow> = {};
 
     try {
       // 1. Profile the data
-      const dataProfile = DataProfiler.profileData(data, outcomeVar, groupVar);
+      const dataProfile = DataProfiler.profileData(data, outcomeVar, groupVar, timeVar, eventVar);
       workflowTrace.data_profile = dataProfile;
 
       // 2. Get recommendation
@@ -768,12 +790,12 @@ export class EngineOrchestrator {
       const requiredAssumptions = testRegistry[recommendation.primary as keyof typeof testRegistry]?.assumptions || [];
 
       if (requiredAssumptions.includes('normality')) {
-        const groups = [...new Set(data.map(row => row[groupVar]))];
+        const groups = [...new Set(data.map(row => row[groupVar!]))];
         const normalityChecks: Record<string, any> = {};
         
         for (const group of groups) {
           const groupData = data
-            .filter(row => row[groupVar] === group)
+            .filter(row => row[groupVar!] === group)
             .map(row => Number(row[outcomeVar]))
             .filter(val => !isNaN(val));
           
@@ -786,7 +808,7 @@ export class EngineOrchestrator {
       }
 
       if (requiredAssumptions.includes('homogeneity_of_variance')) {
-        const homogeneityCheck = AssumptionChecker.checkHomogeneityOfVariance(data, groupVar, outcomeVar);
+        const homogeneityCheck = AssumptionChecker.checkHomogeneityOfVariance(data, groupVar!, outcomeVar);
         assumptionResults.homogeneity_of_variance = homogeneityCheck;
         if (!homogeneityCheck.passed) {
           assumptionsPassed = false;
@@ -816,7 +838,14 @@ export class EngineOrchestrator {
         return workflowTrace as AnalysisWorkflow;
       }
 
-      const finalResult = testFunction(data, groupVar, outcomeVar);
+      let finalResult: StatisticalResult;
+      
+      if (finalTestName === 'kaplan_meier') {
+        finalResult = testFunction(data, timeVar!, eventVar!, groupVar);
+      } else {
+        finalResult = testFunction(data, groupVar!, outcomeVar);
+      }
+      
       workflowTrace.final_result = finalResult;
 
       return workflowTrace as AnalysisWorkflow;
@@ -846,6 +875,8 @@ export class EngineOrchestrator {
         outcome_variable: outcomeVar,
         outcome_type: 'continuous', // Simplified
         group_variable: groupVar,
+        time_variable: timeVar,
+        event_variable: eventVar,
         is_paired: false,
         variables: Object.keys(data[0] || {})
       };
