@@ -9,24 +9,62 @@ import {
   CheckCircle,
   Settings
 } from 'lucide-react';
+import { ParsedData } from '../utils/csvParser';
 
 interface DataPreviewProps {
-  data: any;
+  data: ParsedData;
   onNext: () => void;
   onBack: () => void;
 }
 
 const DataPreview: React.FC<DataPreviewProps> = ({ data, onNext, onBack }) => {
   const [studyType, setStudyType] = useState('randomized_trial');
+  const [outcomeVariable, setOutcomeVariable] = useState('');
+  const [groupVariable, setGroupVariable] = useState('');
 
-  const columnTypes = {
-    'Patient_ID': 'categorical',
-    'Age': 'continuous',
-    'Treatment': 'categorical',
-    'Outcome': 'continuous',
-    'Gender': 'categorical',
-    'BMI': 'continuous',
-    'Baseline_Score': 'continuous'
+  // Auto-detect likely variables
+  React.useEffect(() => {
+    // Look for common outcome variable names
+    const outcomeKeywords = ['outcome', 'score', 'result', 'response', 'efficacy', 'effect'];
+    const groupKeywords = ['treatment', 'group', 'condition', 'arm', 'therapy'];
+
+    const likelyOutcome = data.columns.find(col => 
+      outcomeKeywords.some(keyword => col.toLowerCase().includes(keyword))
+    );
+    
+    const likelyGroup = data.columns.find(col => 
+      groupKeywords.some(keyword => col.toLowerCase().includes(keyword))
+    );
+
+    if (likelyOutcome && !outcomeVariable) {
+      setOutcomeVariable(likelyOutcome);
+    }
+    
+    if (likelyGroup && !groupVariable) {
+      setGroupVariable(likelyGroup);
+    }
+  }, [data.columns, outcomeVariable, groupVariable]);
+
+  const getColumnType = (columnName: string): string => {
+    const sampleValues = data.preview.map(row => row[columnName]).filter(val => val != null);
+    
+    if (sampleValues.length === 0) return 'unknown';
+    
+    // Check if all values are numeric
+    const isNumeric = sampleValues.every(val => !isNaN(Number(val)));
+    
+    if (isNumeric) {
+      // Check if it looks like an ID or categorical despite being numeric
+      const uniqueValues = new Set(sampleValues);
+      const uniqueRatio = uniqueValues.size / sampleValues.length;
+      
+      if (columnName.toLowerCase().includes('id') || uniqueRatio > 0.8) {
+        return 'categorical';
+      }
+      return 'continuous';
+    }
+    
+    return 'categorical';
   };
 
   const getColumnTypeColor = (type: string) => {
@@ -37,6 +75,49 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onNext, onBack }) => {
       default: return 'bg-gray-100 text-gray-800';
     }
   };
+
+  const getDataQualityChecks = () => {
+    const checks = [];
+    
+    // Check for missing values
+    const totalCells = data.rows * data.columns.length;
+    const missingCount = data.data.reduce((count, row) => {
+      return count + data.columns.filter(col => row[col] == null || row[col] === '').length;
+    }, 0);
+    
+    if (missingCount === 0) {
+      checks.push({ type: 'success', message: 'No missing values detected' });
+    } else {
+      const missingPercent = (missingCount / totalCells * 100).toFixed(1);
+      checks.push({ type: 'warning', message: `${missingPercent}% missing values detected` });
+    }
+    
+    // Check data types
+    checks.push({ type: 'success', message: 'Data types automatically detected' });
+    
+    // Check for potential outliers (simplified)
+    if (outcomeVariable) {
+      const outcomeValues = data.data
+        .map(row => Number(row[outcomeVariable]))
+        .filter(val => !isNaN(val));
+      
+      if (outcomeValues.length > 0) {
+        const mean = outcomeValues.reduce((sum, val) => sum + val, 0) / outcomeValues.length;
+        const std = Math.sqrt(outcomeValues.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / outcomeValues.length);
+        const outliers = outcomeValues.filter(val => Math.abs(val - mean) > 3 * std);
+        
+        if (outliers.length > 0) {
+          checks.push({ type: 'warning', message: `${outliers.length} potential outliers found` });
+        } else {
+          checks.push({ type: 'success', message: 'No extreme outliers detected' });
+        }
+      }
+    }
+    
+    return checks;
+  };
+
+  const canProceed = outcomeVariable && groupVariable;
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -93,9 +174,9 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onNext, onBack }) => {
                         <div className="space-y-1">
                           <div>{column}</div>
                           <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
-                            getColumnTypeColor(columnTypes[column as keyof typeof columnTypes] || 'unknown')
+                            getColumnTypeColor(getColumnType(column))
                           }`}>
-                            {columnTypes[column as keyof typeof columnTypes] || 'unknown'}
+                            {getColumnType(column)}
                           </span>
                         </div>
                       </th>
@@ -117,28 +198,58 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onNext, onBack }) => {
             </div>
           </motion.div>
 
-          {/* Variable Types */}
+          {/* Variable Selection */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
             className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
           >
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Variable Classification</h3>
-            <div className="grid md:grid-cols-2 gap-4">
-              {data.columns.map((column: string) => (
-                <div key={column} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <span className="font-medium text-gray-900">{column}</span>
-                  <select 
-                    className="text-sm border border-gray-300 rounded px-2 py-1"
-                    defaultValue={columnTypes[column as keyof typeof columnTypes] || 'continuous'}
-                  >
-                    <option value="continuous">Continuous</option>
-                    <option value="categorical">Categorical</option>
-                    <option value="ordinal">Ordinal</option>
-                  </select>
-                </div>
-              ))}
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Variable Selection</h3>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Outcome Variable (Dependent)
+                </label>
+                <select 
+                  value={outcomeVariable}
+                  onChange={(e) => setOutcomeVariable(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                >
+                  <option value="">Select outcome variable...</option>
+                  {data.columns
+                    .filter(col => getColumnType(col) === 'continuous')
+                    .map(col => (
+                      <option key={col} value={col}>{col}</option>
+                    ))
+                  }
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  The variable you want to analyze or compare
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Grouping Variable (Independent)
+                </label>
+                <select 
+                  value={groupVariable}
+                  onChange={(e) => setGroupVariable(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                >
+                  <option value="">Select grouping variable...</option>
+                  {data.columns
+                    .filter(col => getColumnType(col) === 'categorical')
+                    .map(col => (
+                      <option key={col} value={col}>{col}</option>
+                    ))
+                  }
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  The variable that defines your groups
+                </p>
+              </div>
             </div>
           </motion.div>
         </div>
@@ -185,18 +296,16 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onNext, onBack }) => {
           >
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Data Quality Check</h3>
             <div className="space-y-3">
-              <div className="flex items-center space-x-3">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-                <span className="text-sm text-gray-700">No missing values detected</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-                <span className="text-sm text-gray-700">Data types validated</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <AlertCircle className="h-5 w-5 text-yellow-600" />
-                <span className="text-sm text-gray-700">2 potential outliers found</span>
-              </div>
+              {getDataQualityChecks().map((check, index) => (
+                <div key={index} className="flex items-center space-x-3">
+                  {check.type === 'success' ? (
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                  ) : (
+                    <AlertCircle className="h-5 w-5 text-yellow-600" />
+                  )}
+                  <span className="text-sm text-gray-700">{check.message}</span>
+                </div>
+              ))}
             </div>
           </motion.div>
 
@@ -212,10 +321,14 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onNext, onBack }) => {
               <h3 className="text-lg font-semibold text-gray-900">AI Insights</h3>
             </div>
             <div className="space-y-3 text-sm text-gray-700">
-              <p>• Detected 3 treatment groups suitable for ANOVA analysis</p>
-              <p>• Continuous outcome variable suggests parametric tests</p>
-              <p>• Balanced design with adequate sample size</p>
-              <p>• Consider age and BMI as potential covariates</p>
+              {groupVariable && (
+                <p>• Detected grouping variable: {groupVariable}</p>
+              )}
+              {outcomeVariable && (
+                <p>• Detected outcome variable: {outcomeVariable}</p>
+              )}
+              <p>• Dataset appears suitable for statistical analysis</p>
+              <p>• Sample size ({data.rows}) is adequate for most tests</p>
             </div>
           </motion.div>
         </div>
@@ -232,7 +345,8 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onNext, onBack }) => {
         </button>
         <button 
           onClick={onNext}
-          className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center space-x-2"
+          disabled={!canProceed}
+          className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <span>Choose Analysis</span>
           <ArrowRight className="h-4 w-4" />

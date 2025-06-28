@@ -1,33 +1,31 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion } from 'framer-motion';
-import { Upload, FileText, CheckCircle, Shield } from 'lucide-react';
+import { Upload, FileText, CheckCircle, Shield, AlertCircle } from 'lucide-react';
+import { parseCSVFile, ParsedData } from '../utils/csvParser';
 
 interface FileUploadProps {
-  onFileUploaded: (data: any) => void;
+  onFileUploaded: (data: ParsedData) => void;
 }
 
 const FileUpload: React.FC<FileUploadProps> = ({ onFileUploaded }) => {
-  const onDrop = useCallback((acceptedFiles: File[]) => {
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
-    if (file) {
-      // Simulate file processing
-      setTimeout(() => {
-        const mockData = {
-          filename: file.name,
-          size: file.size,
-          rows: 150,
-          columns: ['Patient_ID', 'Age', 'Treatment', 'Outcome', 'Gender', 'BMI'],
-          preview: [
-            { Patient_ID: '001', Age: 45, Treatment: 'Drug A', Outcome: 0.82, Gender: 'M', BMI: 24.5 },
-            { Patient_ID: '002', Age: 52, Treatment: 'Drug B', Outcome: 0.91, Gender: 'F', BMI: 22.1 },
-            { Patient_ID: '003', Age: 38, Treatment: 'Drug A', Outcome: 0.76, Gender: 'M', BMI: 26.8 },
-            { Patient_ID: '004', Age: 61, Treatment: 'Placebo', Outcome: 0.65, Gender: 'F', BMI: 28.2 },
-            { Patient_ID: '005', Age: 29, Treatment: 'Drug B', Outcome: 0.88, Gender: 'M', BMI: 23.7 }
-          ]
-        };
-        onFileUploaded(mockData);
-      }, 1500);
+    if (!file) return;
+
+    setIsProcessing(true);
+    setError(null);
+
+    try {
+      const parsedData = await parseCSVFile(file);
+      onFileUploaded(parsedData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to process file');
+    } finally {
+      setIsProcessing(false);
     }
   }, [onFileUploaded]);
 
@@ -36,11 +34,59 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploaded }) => {
     accept: {
       'text/csv': ['.csv'],
       'application/vnd.ms-excel': ['.xls'],
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-      'application/x-spss': ['.sav']
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']
     },
-    multiple: false
+    multiple: false,
+    disabled: isProcessing
   });
+
+  const generateSampleData = () => {
+    // Generate realistic clinical trial data
+    const treatments = ['Drug A', 'Drug B', 'Placebo'];
+    const genders = ['Male', 'Female'];
+    const sampleData = [];
+
+    for (let i = 1; i <= 120; i++) {
+      const treatment = treatments[Math.floor(Math.random() * treatments.length)];
+      const gender = genders[Math.floor(Math.random() * genders.length)];
+      const age = Math.floor(Math.random() * 40) + 30; // Age 30-70
+      const baselineScore = Math.random() * 0.3 + 0.4; // 0.4-0.7
+      
+      // Treatment effect simulation
+      let outcomeScore = baselineScore;
+      if (treatment === 'Drug A') {
+        outcomeScore += Math.random() * 0.3 + 0.1; // Better outcome
+      } else if (treatment === 'Drug B') {
+        outcomeScore += Math.random() * 0.2 + 0.05; // Moderate improvement
+      } else {
+        outcomeScore += Math.random() * 0.1 - 0.05; // Placebo effect
+      }
+      
+      // Add some noise
+      outcomeScore += (Math.random() - 0.5) * 0.1;
+      outcomeScore = Math.max(0, Math.min(1, outcomeScore)); // Clamp to 0-1
+
+      sampleData.push({
+        Patient_ID: `P${i.toString().padStart(3, '0')}`,
+        Age: age,
+        Gender: gender,
+        Treatment: treatment,
+        Baseline_Score: Math.round(baselineScore * 100) / 100,
+        Outcome_Score: Math.round(outcomeScore * 100) / 100,
+        BMI: Math.round((Math.random() * 10 + 20) * 10) / 10 // BMI 20-30
+      });
+    }
+
+    const mockParsedData: ParsedData = {
+      data: sampleData,
+      columns: ['Patient_ID', 'Age', 'Gender', 'Treatment', 'Baseline_Score', 'Outcome_Score', 'BMI'],
+      filename: 'sample_clinical_trial.csv',
+      rows: sampleData.length,
+      preview: sampleData.slice(0, 5)
+    };
+
+    onFileUploaded(mockParsedData);
+  };
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -51,32 +97,67 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploaded }) => {
         </p>
       </div>
 
+      {error && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-3"
+        >
+          <AlertCircle className="h-5 w-5 text-red-600" />
+          <span className="text-red-700">{error}</span>
+        </motion.div>
+      )}
+
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-2xl shadow-lg border-2 border-dashed border-gray-300 p-12 text-center hover:border-blue-400 transition-colors"
+        className={`bg-white rounded-2xl shadow-lg border-2 border-dashed p-12 text-center transition-colors ${
+          isDragActive 
+            ? 'border-blue-400 bg-blue-50' 
+            : isProcessing 
+            ? 'border-gray-300 bg-gray-50' 
+            : 'border-gray-300 hover:border-blue-400'
+        }`}
         {...getRootProps()}
       >
         <input {...getInputProps()} />
         
         <div className="space-y-6">
           <div className="mx-auto w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center">
-            <Upload className={`h-12 w-12 ${isDragActive ? 'text-blue-600 animate-bounce' : 'text-blue-500'}`} />
+            {isProcessing ? (
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            ) : (
+              <Upload className={`h-12 w-12 ${isDragActive ? 'text-blue-600 animate-bounce' : 'text-blue-500'}`} />
+            )}
           </div>
           
           <div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              {isDragActive ? 'Drop your file here' : 'Drop your CSV/Excel file here'}
+              {isProcessing 
+                ? 'Processing your file...' 
+                : isDragActive 
+                ? 'Drop your file here' 
+                : 'Drop your CSV file here'
+              }
             </h3>
-            <p className="text-gray-600 mb-4">or click to browse</p>
-            <p className="text-sm text-gray-500">
-              Supports CSV, Excel (.xlsx, .xls), and SPSS (.sav) files up to 100MB
-            </p>
+            {!isProcessing && (
+              <>
+                <p className="text-gray-600 mb-4">or click to browse</p>
+                <p className="text-sm text-gray-500">
+                  Supports CSV and Excel files up to 100MB
+                </p>
+              </>
+            )}
           </div>
 
-          <button className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors">
-            Choose File
-          </button>
+          {!isProcessing && (
+            <button 
+              className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+              disabled={isProcessing}
+            >
+              Choose File
+            </button>
+          )}
         </div>
       </motion.div>
 
@@ -115,9 +196,9 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploaded }) => {
           className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 text-center"
         >
           <Shield className="h-8 w-8 text-purple-600 mx-auto mb-3" />
-          <h4 className="font-semibold text-gray-900 mb-2">HIPAA Compliant</h4>
+          <h4 className="font-semibold text-gray-900 mb-2">Secure Processing</h4>
           <p className="text-sm text-gray-600">
-            Enterprise-grade security for medical research data
+            All data processing happens locally in your browser
           </p>
         </motion.div>
       </div>
@@ -126,25 +207,11 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploaded }) => {
       <div className="mt-12 text-center">
         <p className="text-gray-600 mb-4">Don't have data ready? Try our sample dataset</p>
         <button 
-          onClick={() => {
-            const sampleData = {
-              filename: 'sample_clinical_trial.csv',
-              size: 15420,
-              rows: 200,
-              columns: ['Patient_ID', 'Age', 'Treatment', 'Outcome', 'Gender', 'BMI', 'Baseline_Score'],
-              preview: [
-                { Patient_ID: '001', Age: 45, Treatment: 'Drug A', Outcome: 0.82, Gender: 'M', BMI: 24.5, Baseline_Score: 0.65 },
-                { Patient_ID: '002', Age: 52, Treatment: 'Drug B', Outcome: 0.91, Gender: 'F', BMI: 22.1, Baseline_Score: 0.58 },
-                { Patient_ID: '003', Age: 38, Treatment: 'Drug A', Outcome: 0.76, Gender: 'M', BMI: 26.8, Baseline_Score: 0.72 },
-                { Patient_ID: '004', Age: 61, Treatment: 'Placebo', Outcome: 0.65, Gender: 'F', BMI: 28.2, Baseline_Score: 0.61 },
-                { Patient_ID: '005', Age: 29, Treatment: 'Drug B', Outcome: 0.88, Gender: 'M', BMI: 23.7, Baseline_Score: 0.55 }
-              ]
-            };
-            onFileUploaded(sampleData);
-          }}
-          className="text-blue-600 hover:text-blue-700 font-medium underline"
+          onClick={generateSampleData}
+          disabled={isProcessing}
+          className="text-blue-600 hover:text-blue-700 font-medium underline disabled:opacity-50"
         >
-          Use Sample Clinical Trial Data
+          Use Sample Clinical Trial Data (120 patients)
         </button>
       </div>
     </div>

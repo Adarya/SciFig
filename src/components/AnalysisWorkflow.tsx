@@ -16,6 +16,7 @@ import FileUpload from './FileUpload';
 import DataPreview from './DataPreview';
 import AnalysisSelection from './AnalysisSelection';
 import ResultsView from './ResultsView';
+import { ParsedData } from '../utils/csvParser';
 
 interface AnalysisWorkflowProps {
   onNavigate: (view: string) => void;
@@ -25,7 +26,9 @@ type WorkflowStep = 'upload' | 'preview' | 'analysis' | 'results';
 
 const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate }) => {
   const [currentStep, setCurrentStep] = useState<WorkflowStep>('upload');
-  const [uploadedData, setUploadedData] = useState<any>(null);
+  const [uploadedData, setUploadedData] = useState<ParsedData | null>(null);
+  const [outcomeVariable, setOutcomeVariable] = useState<string>('');
+  const [groupVariable, setGroupVariable] = useState<string>('');
   const [analysisConfig, setAnalysisConfig] = useState<any>(null);
 
   const steps = [
@@ -51,45 +54,77 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate }) => {
     }
   };
 
+  const handleFileUploaded = (data: ParsedData) => {
+    setUploadedData(data);
+    
+    // Auto-detect variables
+    const outcomeKeywords = ['outcome', 'score', 'result', 'response', 'efficacy', 'effect'];
+    const groupKeywords = ['treatment', 'group', 'condition', 'arm', 'therapy'];
+
+    const likelyOutcome = data.columns.find(col => 
+      outcomeKeywords.some(keyword => col.toLowerCase().includes(keyword))
+    );
+    
+    const likelyGroup = data.columns.find(col => 
+      groupKeywords.some(keyword => col.toLowerCase().includes(keyword))
+    );
+
+    if (likelyOutcome) setOutcomeVariable(likelyOutcome);
+    if (likelyGroup) setGroupVariable(likelyGroup);
+    
+    handleNext();
+  };
+
+  const handlePreviewNext = () => {
+    // Variables should be set in DataPreview component
+    handleNext();
+  };
+
+  const handleAnalysisSelected = (config: any) => {
+    setAnalysisConfig(config);
+    handleNext();
+  };
+
   const renderStepContent = () => {
     switch (currentStep) {
       case 'upload':
         return (
           <FileUpload 
-            onFileUploaded={(data) => {
-              setUploadedData(data);
-              handleNext();
-            }}
+            onFileUploaded={handleFileUploaded}
           />
         );
       case 'preview':
-        return (
+        return uploadedData ? (
           <DataPreview 
             data={uploadedData}
-            onNext={handleNext}
+            onNext={handlePreviewNext}
             onBack={handleBack}
           />
-        );
+        ) : null;
       case 'analysis':
-        return (
+        return uploadedData ? (
           <AnalysisSelection 
             data={uploadedData}
-            onAnalysisSelected={(config) => {
-              setAnalysisConfig(config);
-              handleNext();
-            }}
+            outcomeVariable={outcomeVariable}
+            groupVariable={groupVariable}
+            onAnalysisSelected={handleAnalysisSelected}
             onBack={handleBack}
           />
-        );
+        ) : null;
       case 'results':
-        return (
+        return analysisConfig ? (
           <ResultsView 
-            data={uploadedData}
             analysisConfig={analysisConfig}
             onBack={handleBack}
-            onNewAnalysis={() => setCurrentStep('upload')}
+            onNewAnalysis={() => {
+              setCurrentStep('upload');
+              setUploadedData(null);
+              setAnalysisConfig(null);
+              setOutcomeVariable('');
+              setGroupVariable('');
+            }}
           />
-        );
+        ) : null;
       default:
         return null;
     }

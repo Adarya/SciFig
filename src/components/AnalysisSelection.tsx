@@ -11,68 +11,67 @@ import {
   Activity,
   PieChart
 } from 'lucide-react';
+import { ParsedData } from '../utils/csvParser';
 
 interface AnalysisSelectionProps {
-  data: any;
+  data: ParsedData;
+  outcomeVariable: string;
+  groupVariable: string;
   onAnalysisSelected: (config: any) => void;
   onBack: () => void;
 }
 
-const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({ data, onAnalysisSelected, onBack }) => {
+const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({ 
+  data, 
+  outcomeVariable, 
+  groupVariable, 
+  onAnalysisSelected, 
+  onBack 
+}) => {
   const [selectedAnalysis, setSelectedAnalysis] = useState('independent_ttest');
   const [naturalLanguageQuery, setNaturalLanguageQuery] = useState('');
+
+  // Determine number of groups
+  const groups = [...new Set(data.data.map(row => row[groupVariable]))];
+  const nGroups = groups.length;
 
   const recommendedAnalyses = [
     {
       id: 'independent_ttest',
       name: 'Independent T-Test',
-      description: 'Compare Drug A vs Drug B outcomes',
+      description: `Compare ${groups[0]} vs ${groups[1]} outcomes`,
       reason: '2 groups, continuous outcome',
       icon: BarChart3,
       assumptions: ['Normality', 'Equal variance'],
       effectSize: "Cohen's d",
-      recommended: true
+      recommended: nGroups === 2
     },
     {
-      id: 'anova',
-      name: 'ANOVA with Post-hoc',
-      description: 'Compare all 3 treatment groups',
+      id: 'one_way_anova',
+      name: 'One-Way ANOVA',
+      description: `Compare all ${nGroups} treatment groups`,
       reason: '3+ groups comparison',
       icon: TrendingUp,
       assumptions: ['Normality', 'Equal variance', 'Independence'],
       effectSize: 'Eta squared',
-      recommended: true
+      recommended: nGroups > 2
     }
-  ];
+  ].filter(analysis => analysis.recommended);
 
   const otherAnalyses = [
     {
-      id: 'linear_regression',
-      name: 'Linear Regression',
-      description: 'Model outcome with multiple predictors',
+      id: 'mann_whitney_u',
+      name: 'Mann-Whitney U Test',
+      description: 'Non-parametric comparison of 2 groups',
       icon: Activity,
-      assumptions: ['Linearity', 'Independence', 'Normality']
+      assumptions: ['Independence']
     },
     {
-      id: 'logistic_regression',
-      name: 'Logistic Regression',
-      description: 'Binary outcome prediction',
+      id: 'kruskal_wallis',
+      name: 'Kruskal-Wallis Test',
+      description: 'Non-parametric comparison of 3+ groups',
       icon: PieChart,
-      assumptions: ['Independence', 'Linearity of logit']
-    },
-    {
-      id: 'survival_analysis',
-      name: 'Survival Analysis',
-      description: 'Time-to-event analysis',
-      icon: Activity,
-      assumptions: ['Proportional hazards']
-    },
-    {
-      id: 'chi_square',
-      name: 'Chi-square Test',
-      description: 'Association between categorical variables',
-      icon: PieChart,
-      assumptions: ['Expected frequencies ≥ 5']
+      assumptions: ['Independence']
     }
   ];
 
@@ -83,16 +82,22 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({ data, onAnalysisS
     onAnalysisSelected({
       type: selectedAnalysis,
       config: selectedConfig,
-      naturalLanguageQuery
+      naturalLanguageQuery,
+      outcomeVariable,
+      groupVariable,
+      data: data.data
     });
   };
 
   const handleNaturalLanguageSubmit = () => {
-    // Simulate AI processing of natural language query
-    if (naturalLanguageQuery.toLowerCase().includes('drug a') && naturalLanguageQuery.toLowerCase().includes('drug b')) {
+    // Simple keyword matching for demo
+    const query = naturalLanguageQuery.toLowerCase();
+    if (query.includes('compare') && nGroups === 2) {
       setSelectedAnalysis('independent_ttest');
-    } else if (naturalLanguageQuery.toLowerCase().includes('all groups')) {
-      setSelectedAnalysis('anova');
+    } else if (query.includes('all groups') || (query.includes('compare') && nGroups > 2)) {
+      setSelectedAnalysis('one_way_anova');
+    } else if (query.includes('non-parametric') || query.includes('not normal')) {
+      setSelectedAnalysis(nGroups === 2 ? 'mann_whitney_u' : 'kruskal_wallis');
     }
   };
 
@@ -122,7 +127,7 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({ data, onAnalysisS
               <textarea
                 value={naturalLanguageQuery}
                 onChange={(e) => setNaturalLanguageQuery(e.target.value)}
-                placeholder="e.g., 'I want to show if Drug A works better than Drug B' or 'Compare all treatment groups'"
+                placeholder={`e.g., 'I want to compare ${outcomeVariable} between ${groups.join(' and ')}'`}
                 className="w-full h-24 border border-gray-300 rounded-lg px-4 py-3 resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <button 
@@ -135,65 +140,67 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({ data, onAnalysisS
           </motion.div>
 
           {/* Recommended Analyses */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
-          >
-            <div className="flex items-center space-x-3 mb-6">
-              <Target className="h-6 w-6 text-green-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Recommended for Your Data</h3>
-            </div>
-            <div className="space-y-4">
-              {recommendedAnalyses.map((analysis) => {
-                const AnalysisIcon = analysis.icon;
-                const isSelected = selectedAnalysis === analysis.id;
-                
-                return (
-                  <div
-                    key={analysis.id}
-                    onClick={() => setSelectedAnalysis(analysis.id)}
-                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                      isSelected 
-                        ? 'border-blue-500 bg-blue-50' 
-                        : 'border-gray-200 hover:border-gray-300 bg-white'
-                    }`}
-                  >
-                    <div className="flex items-start space-x-4">
-                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                        isSelected ? 'bg-blue-100' : 'bg-gray-100'
-                      }`}>
-                        <AnalysisIcon className={`h-6 w-6 ${
-                          isSelected ? 'text-blue-600' : 'text-gray-600'
-                        }`} />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <h4 className="font-semibold text-gray-900">{analysis.name}</h4>
-                          <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-full">
-                            Recommended
-                          </span>
+          {recommendedAnalyses.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
+            >
+              <div className="flex items-center space-x-3 mb-6">
+                <Target className="h-6 w-6 text-green-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Recommended for Your Data</h3>
+              </div>
+              <div className="space-y-4">
+                {recommendedAnalyses.map((analysis) => {
+                  const AnalysisIcon = analysis.icon;
+                  const isSelected = selectedAnalysis === analysis.id;
+                  
+                  return (
+                    <div
+                      key={analysis.id}
+                      onClick={() => setSelectedAnalysis(analysis.id)}
+                      className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                        isSelected 
+                          ? 'border-blue-500 bg-blue-50' 
+                          : 'border-gray-200 hover:border-gray-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-start space-x-4">
+                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                          isSelected ? 'bg-blue-100' : 'bg-gray-100'
+                        }`}>
+                          <AnalysisIcon className={`h-6 w-6 ${
+                            isSelected ? 'text-blue-600' : 'text-gray-600'
+                          }`} />
                         </div>
-                        <p className="text-gray-700 mb-2">{analysis.description}</p>
-                        <div className="flex items-center space-x-2 text-sm">
-                          <Zap className="h-4 w-4 text-yellow-500" />
-                          <span className="text-gray-600">Why: {analysis.reason}</span>
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {analysis.assumptions.map((assumption) => (
-                            <span key={assumption} className="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded">
-                              {assumption}
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <h4 className="font-semibold text-gray-900">{analysis.name}</h4>
+                            <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-full">
+                              Recommended
                             </span>
-                          ))}
+                          </div>
+                          <p className="text-gray-700 mb-2">{analysis.description}</p>
+                          <div className="flex items-center space-x-2 text-sm">
+                            <Zap className="h-4 w-4 text-yellow-500" />
+                            <span className="text-gray-600">Why: {analysis.reason}</span>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {analysis.assumptions.map((assumption) => (
+                              <span key={assumption} className="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded">
+                                {assumption}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          </motion.div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
 
           {/* Other Options */}
           <motion.div
@@ -262,8 +269,12 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({ data, onAnalysisS
                   <p className="text-sm text-gray-600">{data.rows} observations</p>
                 </div>
                 <div>
+                  <h4 className="font-medium text-gray-900 mb-2">Groups</h4>
+                  <p className="text-sm text-gray-600">{groups.join(', ')}</p>
+                </div>
+                <div>
                   <h4 className="font-medium text-gray-900 mb-2">Power Analysis</h4>
-                  <p className="text-sm text-green-600">✓ Adequate power ({'>'} 80%)</p>
+                  <p className="text-sm text-green-600">✓ Adequate power ({'>'}80%)</p>
                 </div>
               </div>
             )}
@@ -279,10 +290,10 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({ data, onAnalysisS
             <div className="space-y-3 text-sm text-gray-700">
               <p>Based on your data structure:</p>
               <ul className="space-y-1 ml-4">
-                <li>• Independent T-test is most appropriate</li>
+                <li>• {nGroups === 2 ? 'Independent T-test' : 'One-way ANOVA'} is most appropriate</li>
                 <li>• Sample size is adequate for reliable results</li>
                 <li>• Consider checking normality assumptions</li>
-                <li>• Effect size will be reported as Cohen's d</li>
+                <li>• Effect size will be reported as {nGroups === 2 ? "Cohen's d" : 'Eta squared'}</li>
               </ul>
             </div>
           </motion.div>
