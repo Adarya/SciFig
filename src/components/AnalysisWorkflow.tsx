@@ -1,0 +1,178 @@
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Upload, 
+  FileText, 
+  BarChart3, 
+  CheckCircle, 
+  ArrowLeft, 
+  ArrowRight,
+  Brain,
+  Download,
+  Share,
+  Zap
+} from 'lucide-react';
+import FileUpload from './FileUpload';
+import DataPreview from './DataPreview';
+import AnalysisSelection from './AnalysisSelection';
+import ResultsView from './ResultsView';
+
+interface AnalysisWorkflowProps {
+  onNavigate: (view: string) => void;
+}
+
+type WorkflowStep = 'upload' | 'preview' | 'analysis' | 'results';
+
+const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate }) => {
+  const [currentStep, setCurrentStep] = useState<WorkflowStep>('upload');
+  const [uploadedData, setUploadedData] = useState<any>(null);
+  const [analysisConfig, setAnalysisConfig] = useState<any>(null);
+
+  const steps = [
+    { id: 'upload', title: 'Upload Data', icon: Upload },
+    { id: 'preview', title: 'Preview & Configure', icon: FileText },
+    { id: 'analysis', title: 'Choose Analysis', icon: Brain },
+    { id: 'results', title: 'Results & Figures', icon: BarChart3 }
+  ];
+
+  const handleNext = () => {
+    const stepOrder: WorkflowStep[] = ['upload', 'preview', 'analysis', 'results'];
+    const currentIndex = stepOrder.indexOf(currentStep);
+    if (currentIndex < stepOrder.length - 1) {
+      setCurrentStep(stepOrder[currentIndex + 1]);
+    }
+  };
+
+  const handleBack = () => {
+    const stepOrder: WorkflowStep[] = ['upload', 'preview', 'analysis', 'results'];
+    const currentIndex = stepOrder.indexOf(currentStep);
+    if (currentIndex > 0) {
+      setCurrentStep(stepOrder[currentIndex - 1]);
+    }
+  };
+
+  const renderStepContent = () => {
+    switch (currentStep) {
+      case 'upload':
+        return (
+          <FileUpload 
+            onFileUploaded={(data) => {
+              setUploadedData(data);
+              handleNext();
+            }}
+          />
+        );
+      case 'preview':
+        return (
+          <DataPreview 
+            data={uploadedData}
+            onNext={handleNext}
+            onBack={handleBack}
+          />
+        );
+      case 'analysis':
+        return (
+          <AnalysisSelection 
+            data={uploadedData}
+            onAnalysisSelected={(config) => {
+              setAnalysisConfig(config);
+              handleNext();
+            }}
+            onBack={handleBack}
+          />
+        );
+      case 'results':
+        return (
+          <ResultsView 
+            data={uploadedData}
+            analysisConfig={analysisConfig}
+            onBack={handleBack}
+            onNewAnalysis={() => setCurrentStep('upload')}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-4">
+              <button 
+                onClick={() => onNavigate('dashboard')}
+                className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span>Back to Dashboard</span>
+              </button>
+              <div className="h-6 w-px bg-gray-300" />
+              <h1 className="text-xl font-semibold text-gray-900">New Analysis</h1>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Progress Steps */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex items-center justify-between">
+            {steps.map((step, index) => {
+              const isActive = step.id === currentStep;
+              const isCompleted = steps.findIndex(s => s.id === currentStep) > index;
+              const StepIcon = step.icon;
+
+              return (
+                <div key={step.id} className="flex items-center">
+                  <div className={`flex items-center space-x-3 ${
+                    isActive ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-gray-400'
+                  }`}>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${
+                      isActive 
+                        ? 'border-blue-600 bg-blue-50' 
+                        : isCompleted 
+                        ? 'border-green-600 bg-green-50' 
+                        : 'border-gray-300 bg-gray-50'
+                    }`}>
+                      {isCompleted ? (
+                        <CheckCircle className="h-5 w-5" />
+                      ) : (
+                        <StepIcon className="h-5 w-5" />
+                      )}
+                    </div>
+                    <span className="font-medium hidden sm:block">{step.title}</span>
+                  </div>
+                  {index < steps.length - 1 && (
+                    <div className={`w-16 h-px mx-4 ${
+                      isCompleted ? 'bg-green-600' : 'bg-gray-300'
+                    }`} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentStep}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.3 }}
+          >
+            {renderStepContent()}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+};
+
+export default AnalysisWorkflow;
