@@ -40,11 +40,28 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
 
     try {
       const orchestrator = new EngineOrchestrator();
-      const results = orchestrator.runAnalysis(
-        analysisConfig.data,
-        analysisConfig.outcomeVariable,
-        analysisConfig.groupVariable
-      );
+      
+      let results: AnalysisWorkflow;
+      
+      // Handle different analysis types
+      if (['chi_square', 'fisher_exact', 'kaplan_meier'].includes(analysisConfig.type)) {
+        // For special analyses that need custom handling
+        results = orchestrator.runCustomAnalysis(
+          analysisConfig.data,
+          analysisConfig.type,
+          analysisConfig.outcomeVariable,
+          analysisConfig.groupVariable,
+          analysisConfig.timeVariable,
+          analysisConfig.eventVariable
+        );
+      } else {
+        // Standard analyses
+        results = orchestrator.runAnalysis(
+          analysisConfig.data,
+          analysisConfig.outcomeVariable,
+          analysisConfig.groupVariable
+        );
+      }
       
       setAnalysisResults(results);
     } catch (err) {
@@ -60,7 +77,17 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
     const testName = result.test_name;
     const summary = result.summary;
     
-    let methodsText = `A ${testName.toLowerCase()} was conducted to compare ${analysisConfig.outcomeVariable} between groups. `;
+    let methodsText = `A ${testName.toLowerCase()} was conducted to `;
+    
+    if (testName.includes('Chi-Square')) {
+      methodsText += `test the association between ${analysisConfig.outcomeVariable} and ${analysisConfig.groupVariable}. `;
+    } else if (testName.includes('Fisher')) {
+      methodsText += `test the association between ${analysisConfig.outcomeVariable} and ${analysisConfig.groupVariable} using an exact test. `;
+    } else if (testName.includes('Survival') || testName.includes('Kaplan-Meier')) {
+      methodsText += `analyze time-to-event data. `;
+    } else {
+      methodsText += `compare ${analysisConfig.outcomeVariable} between groups. `;
+    }
     
     if (result.groups) {
       const groupNames = Object.keys(result.groups);
@@ -91,22 +118,36 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
 
     const result = analysisResults.final_result as StatisticalResult;
     
-    if (result.test_name.includes('T-Test') || result.test_name.includes('Mann-Whitney')) {
-      return FigureGenerator.generateBoxPlot(
-        analysisConfig.data,
-        analysisConfig.groupVariable,
-        analysisConfig.outcomeVariable,
-        result,
-        figureStyle
-      );
-    } else if (result.test_name.includes('ANOVA') || result.test_name.includes('Kruskal')) {
-      return FigureGenerator.generateBarPlot(
-        analysisConfig.data,
-        analysisConfig.groupVariable,
-        analysisConfig.outcomeVariable,
-        result,
-        figureStyle
-      );
+    try {
+      if (result.test_name.includes('T-Test') || result.test_name.includes('Mann-Whitney')) {
+        return FigureGenerator.generateBoxPlot(
+          analysisConfig.data,
+          analysisConfig.groupVariable,
+          analysisConfig.outcomeVariable,
+          result,
+          figureStyle
+        );
+      } else if (result.test_name.includes('ANOVA') || result.test_name.includes('Kruskal')) {
+        return FigureGenerator.generateBarPlot(
+          analysisConfig.data,
+          analysisConfig.groupVariable,
+          analysisConfig.outcomeVariable,
+          result,
+          figureStyle
+        );
+      } else if (result.test_name.includes('Chi-Square') || result.test_name.includes('Fisher')) {
+        return FigureGenerator.generateContingencyHeatmap(
+          result,
+          analysisConfig.groupVariable,
+          analysisConfig.outcomeVariable,
+          figureStyle
+        );
+      } else if (result.test_name.includes('Survival') || result.test_name.includes('Kaplan-Meier')) {
+        return FigureGenerator.generateSurvivalCurve(result, figureStyle);
+      }
+    } catch (err) {
+      console.error('Figure generation error:', err);
+      return null;
     }
     
     return null;

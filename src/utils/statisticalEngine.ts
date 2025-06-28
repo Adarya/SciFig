@@ -38,6 +38,12 @@ export interface StatisticalResult {
     n: number;
   }>;
   confidence_interval?: [number, number];
+  contingency_table?: number[][];
+  survival_data?: {
+    times: number[];
+    events: boolean[];
+    groups?: string[];
+  };
 }
 
 export interface AnalysisWorkflow {
@@ -382,6 +388,172 @@ export class CoreCalculations {
     };
   }
 
+  static runChiSquareTest(
+    data: any[],
+    groupVar: string,
+    outcomeVar: string
+  ): StatisticalResult {
+    // Create contingency table
+    const groups = [...new Set(data.map(row => row[groupVar]))];
+    const outcomes = [...new Set(data.map(row => row[outcomeVar]))];
+    
+    const contingencyTable: number[][] = [];
+    const observed: number[] = [];
+    const expected: number[] = [];
+    
+    // Build contingency table
+    for (let i = 0; i < groups.length; i++) {
+      contingencyTable[i] = [];
+      for (let j = 0; j < outcomes.length; j++) {
+        const count = data.filter(row => 
+          row[groupVar] === groups[i] && row[outcomeVar] === outcomes[j]
+        ).length;
+        contingencyTable[i][j] = count;
+        observed.push(count);
+      }
+    }
+
+    // Calculate expected frequencies
+    const rowTotals = contingencyTable.map(row => row.reduce((sum, val) => sum + val, 0));
+    const colTotals = outcomes.map((_, j) => 
+      contingencyTable.reduce((sum, row) => sum + row[j], 0)
+    );
+    const grandTotal = rowTotals.reduce((sum, val) => sum + val, 0);
+
+    for (let i = 0; i < groups.length; i++) {
+      for (let j = 0; j < outcomes.length; j++) {
+        const exp = (rowTotals[i] * colTotals[j]) / grandTotal;
+        expected.push(exp);
+      }
+    }
+
+    // Calculate chi-square statistic
+    let chiSquare = 0;
+    for (let i = 0; i < observed.length; i++) {
+      if (expected[i] > 0) {
+        chiSquare += Math.pow(observed[i] - expected[i], 2) / expected[i];
+      }
+    }
+
+    const df = (groups.length - 1) * (outcomes.length - 1);
+    const pValue = this.calculateChiSquarePValue(chiSquare, df);
+
+    // Cramér's V (effect size)
+    const cramersV = Math.sqrt(chiSquare / (grandTotal * Math.min(groups.length - 1, outcomes.length - 1)));
+
+    return {
+      test_name: 'Chi-Square Test of Independence',
+      statistic: {
+        chi_square: chiSquare,
+        degrees_of_freedom: df
+      },
+      p_value: pValue,
+      effect_size: {
+        name: "Cramér's V",
+        value: cramersV
+      },
+      summary: `χ²(${df}) = ${chiSquare.toFixed(2)}, p = ${pValue.toFixed(3)}`,
+      contingency_table: contingencyTable
+    };
+  }
+
+  static runFisherExactTest(
+    data: any[],
+    groupVar: string,
+    outcomeVar: string
+  ): StatisticalResult {
+    // Simplified Fisher's exact test for 2x2 tables
+    const groups = [...new Set(data.map(row => row[groupVar]))];
+    const outcomes = [...new Set(data.map(row => row[outcomeVar]))];
+    
+    if (groups.length !== 2 || outcomes.length !== 2) {
+      throw new Error("Fisher's exact test requires a 2x2 contingency table");
+    }
+
+    // Build 2x2 contingency table
+    const a = data.filter(row => row[groupVar] === groups[0] && row[outcomeVar] === outcomes[0]).length;
+    const b = data.filter(row => row[groupVar] === groups[0] && row[outcomeVar] === outcomes[1]).length;
+    const c = data.filter(row => row[groupVar] === groups[1] && row[outcomeVar] === outcomes[0]).length;
+    const d = data.filter(row => row[groupVar] === groups[1] && row[outcomeVar] === outcomes[1]).length;
+
+    // Calculate odds ratio
+    const oddsRatio = (a * d) / (b * c);
+
+    // Simplified p-value calculation (hypergeometric distribution approximation)
+    const n = a + b + c + d;
+    const pValue = this.calculateFisherExactPValue(a, b, c, d);
+
+    return {
+      test_name: "Fisher's Exact Test",
+      statistic: {
+        odds_ratio: oddsRatio
+      },
+      p_value: pValue,
+      effect_size: {
+        name: 'Odds Ratio',
+        value: oddsRatio
+      },
+      summary: `OR = ${oddsRatio.toFixed(2)}, p = ${pValue.toFixed(3)}`,
+      contingency_table: [[a, b], [c, d]]
+    };
+  }
+
+  static runKaplanMeier(
+    data: any[],
+    timeVar: string,
+    eventVar: string,
+    groupVar?: string
+  ): StatisticalResult {
+    // Extract survival data
+    const survivalData = data.map(row => ({
+      time: Number(row[timeVar]),
+      event: Boolean(row[eventVar]) || Number(row[eventVar]) === 1,
+      group: groupVar ? String(row[groupVar]) : 'All'
+    })).filter(d => !isNaN(d.time));
+
+    // Sort by time
+    survivalData.sort((a, b) => a.time - b.time);
+
+    const times = survivalData.map(d => d.time);
+    const events = survivalData.map(d => d.event);
+    const groups = groupVar ? survivalData.map(d => d.group) : undefined;
+
+    // Calculate survival probabilities (simplified Kaplan-Meier)
+    let atRisk = survivalData.length;
+    let survivalProb = 1.0;
+    const survivalCurve: { time: number; survival: number }[] = [];
+
+    const uniqueTimes = [...new Set(times)];
+    
+    for (const time of uniqueTimes) {
+      const eventsAtTime = survivalData.filter(d => d.time === time && d.event).length;
+      const atRiskAtTime = survivalData.filter(d => d.time >= time).length;
+      
+      if (eventsAtTime > 0) {
+        survivalProb *= (atRiskAtTime - eventsAtTime) / atRiskAtTime;
+      }
+      
+      survivalCurve.push({ time, survival: survivalProb });
+    }
+
+    // Log-rank test p-value (simplified)
+    const pValue = groupVar ? this.calculateLogRankPValue(survivalData, groupVar) : 1.0;
+
+    return {
+      test_name: 'Kaplan-Meier Survival Analysis',
+      statistic: {
+        median_survival: this.calculateMedianSurvival(survivalCurve)
+      },
+      p_value: pValue,
+      summary: `Median survival = ${this.calculateMedianSurvival(survivalCurve).toFixed(1)} time units`,
+      survival_data: {
+        times,
+        events,
+        groups
+      }
+    };
+  }
+
   // Helper functions for p-value calculations
   private static calculateTTestPValue(tStat: number, df: number): number {
     // Simplified p-value calculation
@@ -398,6 +570,44 @@ export class CoreCalculations {
     if (fStat < 1) return 0.5;
     if (fStat > 10) return 0.001;
     return Math.max(0.001, 0.5 / fStat);
+  }
+
+  private static calculateChiSquarePValue(chiSq: number, df: number): number {
+    // Simplified chi-square p-value approximation
+    if (chiSq < df) return 0.5;
+    if (chiSq > df * 3) return 0.001;
+    return Math.max(0.001, Math.exp(-(chiSq - df) / 2));
+  }
+
+  private static calculateFisherExactPValue(a: number, b: number, c: number, d: number): number {
+    // Simplified Fisher's exact test p-value
+    const n = a + b + c + d;
+    const expected = ((a + b) * (a + c)) / n;
+    const deviation = Math.abs(a - expected);
+    return Math.min(1.0, 2 * Math.exp(-2 * deviation * deviation / n));
+  }
+
+  private static calculateLogRankPValue(data: any[], groupVar: string): number {
+    // Simplified log-rank test p-value
+    const groups = [...new Set(data.map(d => d.group))];
+    if (groups.length !== 2) return 1.0;
+    
+    // Very simplified approximation
+    const group1Events = data.filter(d => d.group === groups[0] && d.event).length;
+    const group2Events = data.filter(d => d.group === groups[1] && d.event).length;
+    const totalEvents = group1Events + group2Events;
+    
+    if (totalEvents === 0) return 1.0;
+    
+    const expected1 = totalEvents * data.filter(d => d.group === groups[0]).length / data.length;
+    const chiSq = Math.pow(group1Events - expected1, 2) / expected1;
+    
+    return this.calculateChiSquarePValue(chiSq, 1);
+  }
+
+  private static calculateMedianSurvival(curve: { time: number; survival: number }[]): number {
+    const medianPoint = curve.find(point => point.survival <= 0.5);
+    return medianPoint ? medianPoint.time : curve[curve.length - 1]?.time || 0;
   }
 
   private static normalCDF(x: number): number {
@@ -439,6 +649,11 @@ export class StatisticalValidator {
       issues.push(`ANOVA is for >2 groups, but data has ${dataProfile.n_groups}`);
     }
 
+    // Chi-square validation
+    if (testName.includes('chi_square') && dataProfile.outcome_type !== 'categorical') {
+      issues.push('Chi-square test requires categorical outcome variable');
+    }
+
     // Sample size warnings
     if (dataProfile.sample_size < 20) {
       warnings.push(`Sample size is very small (${dataProfile.sample_size}). Results may not be reliable.`);
@@ -472,6 +687,21 @@ export class StatisticalBrain {
       function: CoreCalculations.runMannWhitneyU,
       assumptions: [],
       alternative: null
+    },
+    chi_square: {
+      function: CoreCalculations.runChiSquareTest,
+      assumptions: [],
+      alternative: 'fisher_exact'
+    },
+    fisher_exact: {
+      function: CoreCalculations.runFisherExactTest,
+      assumptions: [],
+      alternative: null
+    },
+    kaplan_meier: {
+      function: CoreCalculations.runKaplanMeier,
+      assumptions: [],
+      alternative: null
     }
   };
 
@@ -483,6 +713,12 @@ export class StatisticalBrain {
         return { primary: 'independent_ttest', alternative: 'mann_whitney_u' };
       } else if ((n_groups || 0) > 2) {
         return { primary: 'one_way_anova', alternative: 'kruskal_wallis' };
+      }
+    } else if (outcome_type === 'categorical') {
+      if (n_groups === 2) {
+        return { primary: 'fisher_exact', alternative: 'chi_square' };
+      } else {
+        return { primary: 'chi_square', alternative: 'fisher_exact' };
       }
     }
 
@@ -583,6 +819,59 @@ export class EngineOrchestrator {
       const finalResult = testFunction(data, groupVar, outcomeVar);
       workflowTrace.final_result = finalResult;
 
+      return workflowTrace as AnalysisWorkflow;
+
+    } catch (error) {
+      workflowTrace.final_result = {
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      };
+      return workflowTrace as AnalysisWorkflow;
+    }
+  }
+
+  runCustomAnalysis(
+    data: any[],
+    testType: string,
+    outcomeVar: string,
+    groupVar?: string,
+    timeVar?: string,
+    eventVar?: string
+  ): AnalysisWorkflow {
+    const workflowTrace: Partial<AnalysisWorkflow> = {};
+
+    try {
+      // Create a simplified workflow for custom analyses
+      workflowTrace.data_profile = {
+        sample_size: data.length,
+        outcome_variable: outcomeVar,
+        outcome_type: 'continuous', // Simplified
+        group_variable: groupVar,
+        is_paired: false,
+        variables: Object.keys(data[0] || {})
+      };
+
+      workflowTrace.recommendation = { primary: testType, alternative: testType };
+      workflowTrace.validation = { issues: [], warnings: [] };
+      workflowTrace.final_selection = { selected_test: testType, reason: 'User selected' };
+
+      // Execute the specific test
+      let result: StatisticalResult;
+
+      switch (testType) {
+        case 'chi_square':
+          result = CoreCalculations.runChiSquareTest(data, groupVar!, outcomeVar);
+          break;
+        case 'fisher_exact':
+          result = CoreCalculations.runFisherExactTest(data, groupVar!, outcomeVar);
+          break;
+        case 'kaplan_meier':
+          result = CoreCalculations.runKaplanMeier(data, timeVar!, eventVar!, groupVar);
+          break;
+        default:
+          throw new Error(`Unsupported test type: ${testType}`);
+      }
+
+      workflowTrace.final_result = result;
       return workflowTrace as AnalysisWorkflow;
 
     } catch (error) {

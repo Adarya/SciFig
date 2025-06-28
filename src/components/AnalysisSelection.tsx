@@ -9,7 +9,9 @@ import {
   BarChart3,
   TrendingUp,
   Activity,
-  PieChart
+  PieChart,
+  Clock,
+  Users
 } from 'lucide-react';
 import { ParsedData } from '../utils/csvParser';
 
@@ -28,56 +30,158 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
   onAnalysisSelected, 
   onBack 
 }) => {
-  const [selectedAnalysis, setSelectedAnalysis] = useState('independent_ttest');
+  const [selectedAnalysis, setSelectedAnalysis] = useState('');
   const [naturalLanguageQuery, setNaturalLanguageQuery] = useState('');
 
-  // Determine number of groups
+  // Determine data types and characteristics
+  const getColumnType = (columnName: string): string => {
+    const sampleValues = data.preview.map(row => row[columnName]).filter(val => val != null);
+    if (sampleValues.length === 0) return 'unknown';
+    
+    const isNumeric = sampleValues.every(val => !isNaN(Number(val)));
+    if (isNumeric) {
+      const uniqueValues = new Set(sampleValues);
+      const uniqueRatio = uniqueValues.size / sampleValues.length;
+      if (columnName.toLowerCase().includes('id') || uniqueRatio > 0.8) {
+        return 'categorical';
+      }
+      return 'continuous';
+    }
+    return 'categorical';
+  };
+
+  const outcomeType = getColumnType(outcomeVariable);
+  const groupType = getColumnType(groupVariable);
   const groups = [...new Set(data.data.map(row => row[groupVariable]))];
   const nGroups = groups.length;
 
-  const recommendedAnalyses = [
-    {
-      id: 'independent_ttest',
-      name: 'Independent T-Test',
-      description: `Compare ${groups[0]} vs ${groups[1]} outcomes`,
-      reason: '2 groups, continuous outcome',
-      icon: BarChart3,
-      assumptions: ['Normality', 'Equal variance'],
-      effectSize: "Cohen's d",
-      recommended: nGroups === 2
-    },
-    {
-      id: 'one_way_anova',
-      name: 'One-Way ANOVA',
-      description: `Compare all ${nGroups} treatment groups`,
-      reason: '3+ groups comparison',
-      icon: TrendingUp,
-      assumptions: ['Normality', 'Equal variance', 'Independence'],
-      effectSize: 'Eta squared',
-      recommended: nGroups > 2
-    }
-  ].filter(analysis => analysis.recommended);
+  // Build analysis recommendations based on data types
+  const getRecommendedAnalyses = () => {
+    const analyses = [];
 
-  const otherAnalyses = [
-    {
-      id: 'mann_whitney_u',
-      name: 'Mann-Whitney U Test',
-      description: 'Non-parametric comparison of 2 groups',
-      icon: Activity,
-      assumptions: ['Independence']
-    },
-    {
-      id: 'kruskal_wallis',
-      name: 'Kruskal-Wallis Test',
-      description: 'Non-parametric comparison of 3+ groups',
-      icon: PieChart,
-      assumptions: ['Independence']
+    if (outcomeType === 'continuous' && groupType === 'categorical') {
+      if (nGroups === 2) {
+        analyses.push({
+          id: 'independent_ttest',
+          name: 'Independent T-Test',
+          description: `Compare ${groups[0]} vs ${groups[1]} outcomes`,
+          reason: '2 groups, continuous outcome',
+          icon: BarChart3,
+          assumptions: ['Normality', 'Equal variance'],
+          effectSize: "Cohen's d",
+          recommended: true
+        });
+      } else if (nGroups > 2) {
+        analyses.push({
+          id: 'one_way_anova',
+          name: 'One-Way ANOVA',
+          description: `Compare all ${nGroups} treatment groups`,
+          reason: '3+ groups comparison',
+          icon: TrendingUp,
+          assumptions: ['Normality', 'Equal variance', 'Independence'],
+          effectSize: 'Eta squared',
+          recommended: true
+        });
+      }
+    } else if (outcomeType === 'categorical' && groupType === 'categorical') {
+      analyses.push({
+        id: 'chi_square',
+        name: 'Chi-Square Test',
+        description: `Test association between ${outcomeVariable} and ${groupVariable}`,
+        reason: 'Both variables categorical',
+        icon: PieChart,
+        assumptions: ['Expected frequencies ≥ 5'],
+        effectSize: "Cramér's V",
+        recommended: true
+      });
+
+      if (nGroups === 2) {
+        analyses.push({
+          id: 'fisher_exact',
+          name: "Fisher's Exact Test",
+          description: `Exact test for ${outcomeVariable} vs ${groupVariable}`,
+          reason: '2x2 contingency table',
+          icon: Target,
+          assumptions: ['None (exact test)'],
+          effectSize: 'Odds ratio',
+          recommended: true
+        });
+      }
     }
-  ];
+
+    // Auto-select first recommended analysis
+    if (analyses.length > 0 && !selectedAnalysis) {
+      setSelectedAnalysis(analyses[0].id);
+    }
+
+    return analyses;
+  };
+
+  const getOtherAnalyses = () => {
+    const analyses = [];
+
+    // Non-parametric alternatives
+    if (outcomeType === 'continuous' && groupType === 'categorical') {
+      if (nGroups === 2) {
+        analyses.push({
+          id: 'mann_whitney_u',
+          name: 'Mann-Whitney U Test',
+          description: 'Non-parametric comparison of 2 groups',
+          icon: Activity,
+          assumptions: ['Independence']
+        });
+      } else if (nGroups > 2) {
+        analyses.push({
+          id: 'kruskal_wallis',
+          name: 'Kruskal-Wallis Test',
+          description: 'Non-parametric comparison of 3+ groups',
+          icon: PieChart,
+          assumptions: ['Independence']
+        });
+      }
+    }
+
+    // Survival analysis (if time-related columns detected)
+    const timeColumns = data.columns.filter(col => 
+      col.toLowerCase().includes('time') || 
+      col.toLowerCase().includes('duration') ||
+      col.toLowerCase().includes('survival') ||
+      col.toLowerCase().includes('follow')
+    );
+
+    const eventColumns = data.columns.filter(col => 
+      col.toLowerCase().includes('event') || 
+      col.toLowerCase().includes('death') ||
+      col.toLowerCase().includes('status') ||
+      col.toLowerCase().includes('censor')
+    );
+
+    if (timeColumns.length > 0 || eventColumns.length > 0) {
+      analyses.push({
+        id: 'kaplan_meier',
+        name: 'Kaplan-Meier Survival Analysis',
+        description: 'Time-to-event analysis with survival curves',
+        icon: Clock,
+        assumptions: ['Censoring is non-informative']
+      });
+
+      analyses.push({
+        id: 'cox_regression',
+        name: 'Cox Proportional Hazards',
+        description: 'Survival analysis with covariates',
+        icon: TrendingUp,
+        assumptions: ['Proportional hazards']
+      });
+    }
+
+    return analyses;
+  };
+
+  const recommendedAnalyses = getRecommendedAnalyses();
+  const otherAnalyses = getOtherAnalyses();
 
   const handleRunAnalysis = () => {
-    const selectedConfig = recommendedAnalyses.find(a => a.id === selectedAnalysis) || 
-                          otherAnalyses.find(a => a.id === selectedAnalysis);
+    const selectedConfig = [...recommendedAnalyses, ...otherAnalyses].find(a => a.id === selectedAnalysis);
     
     onAnalysisSelected({
       type: selectedAnalysis,
@@ -85,14 +189,22 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
       naturalLanguageQuery,
       outcomeVariable,
       groupVariable,
-      data: data.data
+      data: data.data,
+      outcomeType,
+      groupType
     });
   };
 
   const handleNaturalLanguageSubmit = () => {
-    // Simple keyword matching for demo
     const query = naturalLanguageQuery.toLowerCase();
-    if (query.includes('compare') && nGroups === 2) {
+    
+    if (query.includes('survival') || query.includes('time') || query.includes('kaplan')) {
+      setSelectedAnalysis('kaplan_meier');
+    } else if (query.includes('association') || query.includes('relationship')) {
+      if (outcomeType === 'categorical' && groupType === 'categorical') {
+        setSelectedAnalysis('chi_square');
+      }
+    } else if (query.includes('compare') && nGroups === 2) {
       setSelectedAnalysis('independent_ttest');
     } else if (query.includes('all groups') || (query.includes('compare') && nGroups > 2)) {
       setSelectedAnalysis('one_way_anova');
@@ -127,7 +239,7 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
               <textarea
                 value={naturalLanguageQuery}
                 onChange={(e) => setNaturalLanguageQuery(e.target.value)}
-                placeholder={`e.g., 'I want to compare ${outcomeVariable} between ${groups.join(' and ')}'`}
+                placeholder={`e.g., 'I want to compare ${outcomeVariable} between ${groups.join(' and ')}' or 'Test survival differences'`}
                 className="w-full h-24 border border-gray-300 rounded-lg px-4 py-3 resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <button 
@@ -203,47 +315,49 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
           )}
 
           {/* Other Options */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
-          >
-            <h3 className="text-lg font-semibold text-gray-900 mb-6">Other Analysis Options</h3>
-            <div className="grid md:grid-cols-2 gap-4">
-              {otherAnalyses.map((analysis) => {
-                const AnalysisIcon = analysis.icon;
-                const isSelected = selectedAnalysis === analysis.id;
-                
-                return (
-                  <div
-                    key={analysis.id}
-                    onClick={() => setSelectedAnalysis(analysis.id)}
-                    className={`p-4 rounded-lg border cursor-pointer transition-all ${
-                      isSelected 
-                        ? 'border-blue-500 bg-blue-50' 
-                        : 'border-gray-200 hover:border-gray-300 bg-white'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3 mb-2">
-                      <AnalysisIcon className={`h-5 w-5 ${
-                        isSelected ? 'text-blue-600' : 'text-gray-600'
-                      }`} />
-                      <h4 className="font-medium text-gray-900">{analysis.name}</h4>
+          {otherAnalyses.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
+            >
+              <h3 className="text-lg font-semibold text-gray-900 mb-6">Other Analysis Options</h3>
+              <div className="grid md:grid-cols-2 gap-4">
+                {otherAnalyses.map((analysis) => {
+                  const AnalysisIcon = analysis.icon;
+                  const isSelected = selectedAnalysis === analysis.id;
+                  
+                  return (
+                    <div
+                      key={analysis.id}
+                      onClick={() => setSelectedAnalysis(analysis.id)}
+                      className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                        isSelected 
+                          ? 'border-blue-500 bg-blue-50' 
+                          : 'border-gray-200 hover:border-gray-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3 mb-2">
+                        <AnalysisIcon className={`h-5 w-5 ${
+                          isSelected ? 'text-blue-600' : 'text-gray-600'
+                        }`} />
+                        <h4 className="font-medium text-gray-900">{analysis.name}</h4>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-2">{analysis.description}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {analysis.assumptions.map((assumption) => (
+                          <span key={assumption} className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded">
+                            {assumption}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                    <p className="text-sm text-gray-600 mb-2">{analysis.description}</p>
-                    <div className="flex flex-wrap gap-1">
-                      {analysis.assumptions.map((assumption) => (
-                        <span key={assumption} className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded">
-                          {assumption}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </motion.div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
         </div>
 
         {/* Analysis Details */}
@@ -260,8 +374,13 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
                 <div>
                   <h4 className="font-medium text-gray-900 mb-2">Selected Test</h4>
                   <p className="text-sm text-gray-600">
-                    {recommendedAnalyses.find(a => a.id === selectedAnalysis)?.name || 
-                     otherAnalyses.find(a => a.id === selectedAnalysis)?.name}
+                    {[...recommendedAnalyses, ...otherAnalyses].find(a => a.id === selectedAnalysis)?.name}
+                  </p>
+                </div>
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">Data Types</h4>
+                  <p className="text-sm text-gray-600">
+                    Outcome: {outcomeType}, Groups: {groupType}
                   </p>
                 </div>
                 <div>
@@ -274,7 +393,7 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
                 </div>
                 <div>
                   <h4 className="font-medium text-gray-900 mb-2">Power Analysis</h4>
-                  <p className="text-sm text-green-600">✓ Adequate power ({'>'}80%)</p>
+                  <p className="text-sm text-green-600">✓ Adequate power ({'>'} 80%)</p>
                 </div>
               </div>
             )}
@@ -290,10 +409,22 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
             <div className="space-y-3 text-sm text-gray-700">
               <p>Based on your data structure:</p>
               <ul className="space-y-1 ml-4">
-                <li>• {nGroups === 2 ? 'Independent T-test' : 'One-way ANOVA'} is most appropriate</li>
-                <li>• Sample size is adequate for reliable results</li>
-                <li>• Consider checking normality assumptions</li>
-                <li>• Effect size will be reported as {nGroups === 2 ? "Cohen's d" : 'Eta squared'}</li>
+                {outcomeType === 'continuous' && groupType === 'categorical' && (
+                  <>
+                    <li>• {nGroups === 2 ? 'Independent T-test' : 'One-way ANOVA'} is most appropriate</li>
+                    <li>• Sample size is adequate for reliable results</li>
+                    <li>• Consider checking normality assumptions</li>
+                    <li>• Effect size will be reported as {nGroups === 2 ? "Cohen's d" : 'Eta squared'}</li>
+                  </>
+                )}
+                {outcomeType === 'categorical' && groupType === 'categorical' && (
+                  <>
+                    <li>• Chi-square test for association is recommended</li>
+                    <li>• Check expected cell frequencies ≥ 5</li>
+                    <li>• Consider Fisher's exact test for small samples</li>
+                    <li>• Effect size will be reported as Cramér's V</li>
+                  </>
+                )}
               </ul>
             </div>
           </motion.div>

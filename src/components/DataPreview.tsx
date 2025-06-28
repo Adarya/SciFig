@@ -13,7 +13,7 @@ import { ParsedData } from '../utils/csvParser';
 
 interface DataPreviewProps {
   data: ParsedData;
-  onNext: () => void;
+  onNext: (outcomeVar: string, groupVar: string) => void;
   onBack: () => void;
 }
 
@@ -119,6 +119,12 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onNext, onBack }) => {
 
   const canProceed = outcomeVariable && groupVariable;
 
+  const handleNext = () => {
+    if (canProceed) {
+      onNext(outcomeVariable, groupVariable);
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto">
       <div className="text-center mb-8">
@@ -217,12 +223,9 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onNext, onBack }) => {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 >
                   <option value="">Select outcome variable...</option>
-                  {data.columns
-                    .filter(col => getColumnType(col) === 'continuous')
-                    .map(col => (
-                      <option key={col} value={col}>{col}</option>
-                    ))
-                  }
+                  {data.columns.map(col => (
+                    <option key={col} value={col}>{col}</option>
+                  ))}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
                   The variable you want to analyze or compare
@@ -239,12 +242,9 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onNext, onBack }) => {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 >
                   <option value="">Select grouping variable...</option>
-                  {data.columns
-                    .filter(col => getColumnType(col) === 'categorical')
-                    .map(col => (
-                      <option key={col} value={col}>{col}</option>
-                    ))
-                  }
+                  {data.columns.map(col => (
+                    <option key={col} value={col}>{col}</option>
+                  ))}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
                   The variable that defines your groups
@@ -344,7 +344,7 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onNext, onBack }) => {
           <span>Back</span>
         </button>
         <button 
-          onClick={onNext}
+          onClick={handleNext}
           disabled={!canProceed}
           className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >

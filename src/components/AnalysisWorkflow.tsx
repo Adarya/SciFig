@@ -75,8 +75,9 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate }) => {
     handleNext();
   };
 
-  const handlePreviewNext = () => {
-    // Variables should be set in DataPreview component
+  const handlePreviewNext = (outcomeVar: string, groupVar: string) => {
+    setOutcomeVariable(outcomeVar);
+    setGroupVariable(groupVar);
     handleNext();
   };
 

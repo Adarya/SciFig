@@ -3,6 +3,7 @@ import { StatisticalResult, DataProfile } from './statisticalEngine';
 export interface PlotlyData {
   x?: any[];
   y?: any[];
+  z?: any[];
   type: string;
   mode?: string;
   name?: string;
@@ -11,6 +12,8 @@ export interface PlotlyData {
   boxpoints?: string;
   jitter?: number;
   pointpos?: number;
+  text?: string[];
+  hovertemplate?: string;
 }
 
 export interface PlotlyLayout {
@@ -18,10 +21,12 @@ export interface PlotlyLayout {
   xaxis: {
     title: string;
     showgrid: boolean;
+    type?: string;
   };
   yaxis: {
     title: string;
     showgrid: boolean;
+    type?: string;
   };
   showlegend: boolean;
   plot_bgcolor: string;
@@ -184,6 +189,159 @@ export class FigureGenerator {
         showgrid: true
       },
       showlegend: false,
+      plot_bgcolor: 'white',
+      paper_bgcolor: 'white',
+      font: {
+        family: this.getFontFamily(style),
+        size: 12,
+        color: '#000'
+      }
+    };
+
+    return {
+      data: plotData,
+      layout,
+      config: {
+        displayModeBar: false,
+        responsive: true
+      }
+    };
+  }
+
+  static generateContingencyHeatmap(
+    result: StatisticalResult,
+    groupVar: string,
+    outcomeVar: string,
+    style: string = 'nature'
+  ): { data: PlotlyData[]; layout: PlotlyLayout; config: FigureConfig } {
+    if (!result.contingency_table) {
+      throw new Error('No contingency table data available');
+    }
+
+    const contingencyTable = result.contingency_table;
+    const colors = this.getColorScheme(style);
+
+    // Create heatmap data
+    const plotData: PlotlyData[] = [{
+      z: contingencyTable,
+      type: 'heatmap',
+      colorscale: [
+        [0, '#f7f7f7'],
+        [1, colors[0]]
+      ],
+      showscale: true,
+      text: contingencyTable.map(row => 
+        row.map(cell => cell.toString())
+      ),
+      texttemplate: '%{text}',
+      textfont: { size: 14, color: 'white' },
+      hovertemplate: 'Count: %{z}<extra></extra>'
+    }];
+
+    const layout: PlotlyLayout = {
+      title: `Contingency Table: ${outcomeVar} vs ${groupVar}`,
+      xaxis: {
+        title: outcomeVar,
+        showgrid: false
+      },
+      yaxis: {
+        title: groupVar,
+        showgrid: false
+      },
+      showlegend: false,
+      plot_bgcolor: 'white',
+      paper_bgcolor: 'white',
+      font: {
+        family: this.getFontFamily(style),
+        size: 12,
+        color: '#000'
+      }
+    };
+
+    return {
+      data: plotData,
+      layout,
+      config: {
+        displayModeBar: false,
+        responsive: true
+      }
+    };
+  }
+
+  static generateSurvivalCurve(
+    result: StatisticalResult,
+    style: string = 'nature'
+  ): { data: PlotlyData[]; layout: PlotlyLayout; config: FigureConfig } {
+    if (!result.survival_data) {
+      throw new Error('No survival data available');
+    }
+
+    const { times, events, groups } = result.survival_data;
+    const colors = this.getColorScheme(style);
+
+    // Calculate Kaplan-Meier curves
+    const uniqueGroups = groups ? [...new Set(groups)] : ['All'];
+    const plotData: PlotlyData[] = [];
+
+    uniqueGroups.forEach((group, groupIndex) => {
+      // Filter data for this group
+      const groupIndices = groups ? 
+        groups.map((g, i) => g === group ? i : -1).filter(i => i !== -1) :
+        times.map((_, i) => i);
+
+      const groupTimes = groupIndices.map(i => times[i]);
+      const groupEvents = groupIndices.map(i => events[i]);
+
+      // Sort by time
+      const sortedData = groupTimes.map((time, i) => ({
+        time,
+        event: groupEvents[i]
+      })).sort((a, b) => a.time - b.time);
+
+      // Calculate survival probabilities
+      let atRisk = sortedData.length;
+      let survivalProb = 1.0;
+      const survivalCurve: { time: number; survival: number }[] = [{ time: 0, survival: 1.0 }];
+
+      const uniqueTimes = [...new Set(sortedData.map(d => d.time))];
+      
+      for (const time of uniqueTimes) {
+        const eventsAtTime = sortedData.filter(d => d.time === time && d.event).length;
+        const atRiskAtTime = sortedData.filter(d => d.time >= time).length;
+        
+        if (eventsAtTime > 0 && atRiskAtTime > 0) {
+          survivalProb *= (atRiskAtTime - eventsAtTime) / atRiskAtTime;
+        }
+        
+        survivalCurve.push({ time, survival: survivalProb });
+      }
+
+      plotData.push({
+        x: survivalCurve.map(point => point.time),
+        y: survivalCurve.map(point => point.survival),
+        type: 'scatter',
+        mode: 'lines',
+        name: group,
+        line: {
+          color: colors[groupIndex % colors.length],
+          width: 3,
+          shape: 'hv' // Step function
+        }
+      });
+    });
+
+    const layout: PlotlyLayout = {
+      title: 'Kaplan-Meier Survival Curves',
+      xaxis: {
+        title: 'Time',
+        showgrid: true
+      },
+      yaxis: {
+        title: 'Survival Probability',
+        showgrid: true,
+        type: 'linear'
+      },
+      showlegend: uniqueGroups.length > 1,
       plot_bgcolor: 'white',
       paper_bgcolor: 'white',
       font: {
