@@ -46,6 +46,8 @@ export interface PlotlyLayout {
       color: string;
     };
     type?: string;
+    tickvals?: any[];
+    ticktext?: string[];
   };
   yaxis: {
     title: {
@@ -66,6 +68,8 @@ export interface PlotlyLayout {
       color: string;
     };
     type?: string;
+    tickvals?: any[];
+    ticktext?: string[];
   };
   showlegend: boolean;
   legend?: {
@@ -209,7 +213,7 @@ export class FigureGenerator {
       title: {
         text: customLabels?.title || this.cleanVariableName(valueVar),
         font: {
-          size: 20,
+          size: 18,
           family: this.getFontFamily(style),
           color: '#000'
         },
@@ -219,7 +223,7 @@ export class FigureGenerator {
         title: {
           text: customLabels?.x || this.cleanVariableName(groupVar),
           font: {
-            size: 16,
+            size: 14,
             family: this.getFontFamily(style),
             color: '#000'
           }
@@ -229,7 +233,7 @@ export class FigureGenerator {
         linecolor: '#000',
         linewidth: 2,
         tickfont: {
-          size: 14,
+          size: 12,
           family: this.getFontFamily(style),
           color: '#000'
         }
@@ -238,7 +242,7 @@ export class FigureGenerator {
         title: {
           text: customLabels?.y || this.cleanVariableName(valueVar),
           font: {
-            size: 16,
+            size: 14,
             family: this.getFontFamily(style),
             color: '#000'
           }
@@ -248,7 +252,7 @@ export class FigureGenerator {
         linecolor: '#000',
         linewidth: 2,
         tickfont: {
-          size: 14,
+          size: 12,
           family: this.getFontFamily(style),
           color: '#000'
         }
@@ -258,18 +262,18 @@ export class FigureGenerator {
       paper_bgcolor: 'white',
       font: {
         family: this.getFontFamily(style),
-        size: 14,
+        size: 12,
         color: '#000'
       },
       annotations,
       margin: {
-        l: 80,
-        r: 40,
-        t: 100,
-        b: 80
+        l: 60,
+        r: 20,
+        t: 60,
+        b: 60
       },
-      width: 600,
-      height: 500
+      width: 500,
+      height: 400
     };
 
     return {
@@ -281,8 +285,8 @@ export class FigureGenerator {
         toImageButtonOptions: {
           format: 'png',
           filename: 'figure',
-          height: 500,
-          width: 600,
+          height: 400,
+          width: 500,
           scale: 3
         }
       }
@@ -339,7 +343,7 @@ export class FigureGenerator {
       title: {
         text: customLabels?.title || `Mean ${this.cleanVariableName(valueVar)}`,
         font: {
-          size: 20,
+          size: 18,
           family: this.getFontFamily(style),
           color: '#000'
         },
@@ -349,7 +353,7 @@ export class FigureGenerator {
         title: {
           text: customLabels?.x || this.cleanVariableName(groupVar),
           font: {
-            size: 16,
+            size: 14,
             family: this.getFontFamily(style),
             color: '#000'
           }
@@ -359,7 +363,7 @@ export class FigureGenerator {
         linecolor: '#000',
         linewidth: 2,
         tickfont: {
-          size: 14,
+          size: 12,
           family: this.getFontFamily(style),
           color: '#000'
         }
@@ -368,7 +372,7 @@ export class FigureGenerator {
         title: {
           text: customLabels?.y || `Mean ${this.cleanVariableName(valueVar)}`,
           font: {
-            size: 16,
+            size: 14,
             family: this.getFontFamily(style),
             color: '#000'
           }
@@ -378,7 +382,7 @@ export class FigureGenerator {
         linecolor: '#000',
         linewidth: 2,
         tickfont: {
-          size: 14,
+          size: 12,
           family: this.getFontFamily(style),
           color: '#000'
         }
@@ -388,17 +392,17 @@ export class FigureGenerator {
       paper_bgcolor: 'white',
       font: {
         family: this.getFontFamily(style),
-        size: 14,
+        size: 12,
         color: '#000'
       },
       margin: {
-        l: 80,
-        r: 40,
-        t: 100,
-        b: 80
+        l: 60,
+        r: 20,
+        t: 60,
+        b: 60
       },
-      width: 600,
-      height: 500
+      width: 500,
+      height: 400
     };
 
     return {
@@ -410,8 +414,8 @@ export class FigureGenerator {
         toImageButtonOptions: {
           format: 'png',
           filename: 'figure',
-          height: 500,
-          width: 600,
+          height: 400,
+          width: 500,
           scale: 3
         }
       }
@@ -430,6 +434,8 @@ export class FigureGenerator {
     }
 
     const contingencyTable = result.contingency_table;
+    const groupNames = result.group_names || ['Group 1', 'Group 2'];
+    const outcomeNames = result.outcome_names || ['Outcome 1', 'Outcome 2'];
     const colors = this.getColorScheme(style);
 
     // Create heatmap data
@@ -451,14 +457,16 @@ export class FigureGenerator {
         color: '#000',
         family: this.getFontFamily(style)
       },
-      hovertemplate: 'Count: %{z}<extra></extra>'
+      hovertemplate: 'Count: %{z}<extra></extra>',
+      x: outcomeNames,
+      y: groupNames
     }];
 
     const layout: PlotlyLayout = {
       title: {
         text: customLabels?.title || `${this.cleanVariableName(outcomeVar)} vs ${this.cleanVariableName(groupVar)}`,
         font: {
-          size: 20,
+          size: 18,
           family: this.getFontFamily(style),
           color: '#000'
         },
@@ -468,7 +476,7 @@ export class FigureGenerator {
         title: {
           text: customLabels?.x || this.cleanVariableName(outcomeVar),
           font: {
-            size: 16,
+            size: 14,
             family: this.getFontFamily(style),
             color: '#000'
           }
@@ -478,16 +486,18 @@ export class FigureGenerator {
         linecolor: '#000',
         linewidth: 2,
         tickfont: {
-          size: 14,
+          size: 12,
           family: this.getFontFamily(style),
           color: '#000'
-        }
+        },
+        tickvals: outcomeNames.map((_, i) => i),
+        ticktext: outcomeNames
       },
       yaxis: {
         title: {
           text: customLabels?.y || this.cleanVariableName(groupVar),
           font: {
-            size: 16,
+            size: 14,
             family: this.getFontFamily(style),
             color: '#000'
           }
@@ -497,27 +507,29 @@ export class FigureGenerator {
         linecolor: '#000',
         linewidth: 2,
         tickfont: {
-          size: 14,
+          size: 12,
           family: this.getFontFamily(style),
           color: '#000'
-        }
+        },
+        tickvals: groupNames.map((_, i) => i),
+        ticktext: groupNames
       },
       showlegend: false,
       plot_bgcolor: 'white',
       paper_bgcolor: 'white',
       font: {
         family: this.getFontFamily(style),
-        size: 14,
+        size: 12,
         color: '#000'
       },
       margin: {
         l: 80,
-        r: 40,
-        t: 100,
+        r: 20,
+        t: 60,
         b: 80
       },
-      width: 600,
-      height: 500
+      width: 500,
+      height: 400
     };
 
     return {
@@ -529,8 +541,8 @@ export class FigureGenerator {
         toImageButtonOptions: {
           format: 'png',
           filename: 'figure',
-          height: 500,
-          width: 600,
+          height: 400,
+          width: 500,
           scale: 3
         }
       }
@@ -546,7 +558,7 @@ export class FigureGenerator {
       throw new Error('No survival data available');
     }
 
-    const { times, events, groups } = result.survival_data;
+    const { times, events, groups, group_stats } = result.survival_data;
     const colors = this.getColorScheme(style);
 
     // Calculate Kaplan-Meier curves
@@ -594,17 +606,61 @@ export class FigureGenerator {
         name: group,
         line: {
           color: colors[groupIndex % colors.length],
-          width: 4,
+          width: 3,
           shape: 'hv' // Step function
         }
       });
     });
 
+    // Create annotations for statistics
+    const annotations = [];
+    
+    // Add p-value if significant
+    if (result.p_value < 0.05) {
+      annotations.push({
+        x: 0.02,
+        y: 0.98,
+        xref: 'paper',
+        yref: 'paper',
+        text: `p = ${result.p_value.toFixed(3)}`,
+        showarrow: false,
+        font: { 
+          size: 12, 
+          color: '#000',
+          family: this.getFontFamily(style)
+        },
+        bgcolor: 'rgba(255,255,255,0.8)',
+        bordercolor: '#000',
+        borderwidth: 1
+      });
+    }
+
+    // Add risk table information
+    if (group_stats) {
+      let yPos = 0.15;
+      Object.entries(group_stats).forEach(([group, stats], index) => {
+        annotations.push({
+          x: 0.02,
+          y: yPos - (index * 0.05),
+          xref: 'paper',
+          yref: 'paper',
+          text: `${group}: n=${stats.n}, events=${stats.events}, median=${stats.median_survival.toFixed(1)}`,
+          showarrow: false,
+          font: { 
+            size: 10, 
+            color: colors[index % colors.length],
+            family: this.getFontFamily(style)
+          },
+          bgcolor: 'rgba(255,255,255,0.8)'
+        });
+      });
+    }
+
     const layout: PlotlyLayout = {
       title: {
         text: customLabels?.title || 'Kaplan-Meier Survival Curves',
         font: {
-          size: 20,
+          size: 18,
           family: this.getFontFamily(style),
           color: '#000'
         },
@@ -614,7 +670,7 @@ export class FigureGenerator {
         title: {
           text: customLabels?.x || 'Time',
           font: {
-            size: 16,
+            size: 14,
             family: this.getFontFamily(style),
             color: '#000'
           }
@@ -624,7 +680,7 @@ export class FigureGenerator {
         linecolor: '#000',
         linewidth: 2,
         tickfont: {
-          size: 14,
+          size: 12,
           family: this.getFontFamily(style),
           color: '#000'
         }
@@ -633,7 +689,7 @@ export class FigureGenerator {
         title: {
           text: customLabels?.y || 'Survival Probability',
           font: {
-            size: 16,
+            size: 14,
             family: this.getFontFamily(style),
             color: '#000'
           }
@@ -643,7 +699,7 @@ export class FigureGenerator {
         linecolor: '#000',
         linewidth: 2,
         tickfont: {
-          size: 14,
+          size: 12,
           family: this.getFontFamily(style),
           color: '#000'
         },
@@ -657,7 +713,7 @@ export class FigureGenerator {
         bordercolor: '#000',
         borderwidth: 1,
         font: {
-          size: 14,
+          size: 12,
           family: this.getFontFamily(style),
           color: '#000'
         }
@@ -666,17 +722,18 @@ export class FigureGenerator {
       paper_bgcolor: 'white',
       font: {
         family: this.getFontFamily(style),
-        size: 14,
+        size: 12,
         color: '#000'
       },
+      annotations,
       margin: {
-        l: 80,
-        r: 40,
-        t: 100,
-        b: 80
+        l: 60,
+        r: 20,
+        t: 60,
+        b: 60
       },
-      width: 600,
-      height: 500
+      width: 500,
+      height: 400
     };
 
     return {
@@ -687,9 +744,9 @@ export class FigureGenerator {
         responsive: true,
         toImageButtonOptions: {
           format: 'png',
-          filename: 'figure',
-          height: 500,
-          width: 600,
+          filename: 'survival_curve',
+          height: 400,
+          width: 500,
           scale: 3
         }
       }
@@ -712,7 +769,7 @@ export class FigureGenerator {
       mode: 'markers',
       marker: {
         color: colors[0],
-        size: 10,
+        size: 8,
         opacity: 0.7,
         line: {
           color: '#000',
@@ -725,7 +782,7 @@ export class FigureGenerator {
       title: {
         text: customLabels?.title || `${this.cleanVariableName(yVar)} vs ${this.cleanVariableName(xVar)}`,
         font: {
-          size: 20,
+          size: 18,
           family: this.getFontFamily(style),
           color: '#000'
         },
@@ -735,7 +792,7 @@ export class FigureGenerator {
         title: {
           text: customLabels?.x || this.cleanVariableName(xVar),
           font: {
-            size: 16,
+            size: 14,
             family: this.getFontFamily(style),
             color: '#000'
           }
@@ -745,7 +802,7 @@ export class FigureGenerator {
         linecolor: '#000',
         linewidth: 2,
         tickfont: {
-          size: 14,
+          size: 12,
           family: this.getFontFamily(style),
           color: '#000'
         }
@@ -754,7 +811,7 @@ export class FigureGenerator {
         title: {
           text: customLabels?.y || this.cleanVariableName(yVar),
           font: {
-            size: 16,
+            size: 14,
             family: this.getFontFamily(style),
             color: '#000'
           }
@@ -764,7 +821,7 @@ export class FigureGenerator {
         linecolor: '#000',
         linewidth: 2,
         tickfont: {
-          size: 14,
+          size: 12,
           family: this.getFontFamily(style),
           color: '#000'
         }
@@ -774,17 +831,17 @@ export class FigureGenerator {
       paper_bgcolor: 'white',
       font: {
         family: this.getFontFamily(style),
-        size: 14,
+        size: 12,
         color: '#000'
       },
       margin: {
-        l: 80,
-        r: 40,
-        t: 100,
-        b: 80
+        l: 60,
+        r: 20,
+        t: 60,
+        b: 60
       },
-      width: 600,
-      height: 500
+      width: 500,
+      height: 400
     };
 
     return {
@@ -795,9 +852,9 @@ export class FigureGenerator {
         responsive: true,
         toImageButtonOptions: {
           format: 'png',
-          filename: 'figure',
-          height: 500,
-          width: 600,
+          filename: 'scatter_plot',
+          height: 400,
+          width: 500,
           scale: 3
         }
       }

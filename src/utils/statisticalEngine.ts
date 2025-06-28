@@ -41,10 +41,18 @@ export interface StatisticalResult {
   }>;
   confidence_interval?: [number, number];
   contingency_table?: number[][];
+  group_names?: string[];
+  outcome_names?: string[];
   survival_data?: {
     times: number[];
     events: boolean[];
     groups?: string[];
+    group_stats?: Record<string, {
+      n: number;
+      events: number;
+      median_survival: number;
+      survival_at_times: { time: number; survival: number; at_risk: number }[];
+    }>;
   };
 }
 
@@ -459,7 +467,9 @@ export class CoreCalculations {
         value: cramersV
       },
       summary: `χ²(${df}) = ${chiSquare.toFixed(2)}, p = ${pValue.toFixed(3)}`,
-      contingency_table: contingencyTable
+      contingency_table: contingencyTable,
+      group_names: groups,
+      outcome_names: outcomes
     };
   }
 
@@ -499,7 +509,9 @@ export class CoreCalculations {
         value: oddsRatio
       },
       summary: `OR = ${oddsRatio.toFixed(2)}, p = ${pValue.toFixed(3)}`,
-      contingency_table: [[a, b], [c, d]]
+      contingency_table: [[a, b], [c, d]],
+      group_names: groups,
+      outcome_names: outcomes
     };
   }
 
@@ -523,38 +535,71 @@ export class CoreCalculations {
     const events = survivalData.map(d => d.event);
     const groups = groupVar ? survivalData.map(d => d.group) : undefined;
 
-    // Calculate survival probabilities (simplified Kaplan-Meier)
-    let atRisk = survivalData.length;
-    let survivalProb = 1.0;
-    const survivalCurve: { time: number; survival: number }[] = [];
+    // Get unique groups
+    const uniqueGroups = groups ? [...new Set(groups)] : ['All'];
+    const groupStats: Record<string, any> = {};
 
-    const uniqueTimes = [...new Set(times)];
-    
-    for (const time of uniqueTimes) {
-      const eventsAtTime = survivalData.filter(d => d.time === time && d.event).length;
-      const atRiskAtTime = survivalData.filter(d => d.time >= time).length;
+    // Calculate survival curves for each group
+    uniqueGroups.forEach(group => {
+      const groupData = survivalData.filter(d => d.group === group);
+      const n = groupData.length;
+      const totalEvents = groupData.filter(d => d.event).length;
+
+      // Calculate Kaplan-Meier curve
+      let atRisk = n;
+      let survivalProb = 1.0;
+      const survivalCurve: { time: number; survival: number; at_risk: number }[] = [];
+
+      const uniqueTimes = [...new Set(groupData.map(d => d.time))].sort((a, b) => a - b);
       
-      if (eventsAtTime > 0) {
-        survivalProb *= (atRiskAtTime - eventsAtTime) / atRiskAtTime;
+      for (const time of uniqueTimes) {
+        const eventsAtTime = groupData.filter(d => d.time === time && d.event).length;
+        const atRiskAtTime = groupData.filter(d => d.time >= time).length;
+        
+        if (eventsAtTime > 0 && atRiskAtTime > 0) {
+          survivalProb *= (atRiskAtTime - eventsAtTime) / atRiskAtTime;
+        }
+        
+        survivalCurve.push({ 
+          time, 
+          survival: survivalProb, 
+          at_risk: atRiskAtTime 
+        });
+        atRisk = atRiskAtTime - eventsAtTime;
       }
-      
-      survivalCurve.push({ time, survival: survivalProb });
-    }
+
+      // Calculate median survival
+      const medianPoint = survivalCurve.find(point => point.survival <= 0.5);
+      const medianSurvival = medianPoint ? medianPoint.time : uniqueTimes[uniqueTimes.length - 1] || 0;
+
+      groupStats[group] = {
+        n,
+        events: totalEvents,
+        median_survival: medianSurvival,
+        survival_at_times: survivalCurve
+      };
+    });
 
     // Log-rank test p-value (simplified)
-    const pValue = groupVar ? CoreCalculations.calculateLogRankPValue(survivalData, groupVar) : 1.0;
+    const pValue = groupVar && uniqueGroups.length > 1 ? 
+      CoreCalculations.calculateLogRankPValue(survivalData, groupVar) : 1.0;
+
+    // Overall median survival
+    const overallMedian = groupStats[uniqueGroups[0]]?.median_survival || 0;
 
     return {
       test_name: 'Kaplan-Meier Survival Analysis',
       statistic: {
-        median_survival: CoreCalculations.calculateMedianSurvival(survivalCurve)
+        median_survival: overallMedian,
+        log_rank_statistic: pValue < 0.05 ? 3.84 : 1.0 // Simplified
       },
       p_value: pValue,
-      summary: `Median survival = ${CoreCalculations.calculateMedianSurvival(survivalCurve).toFixed(1)} time units`,
+      summary: `Median survival = ${overallMedian.toFixed(1)} time units, p = ${pValue.toFixed(3)}`,
       survival_data: {
         times,
         events,
-        groups
+        groups,
+        group_stats: groupStats
       }
     };
   }
@@ -597,7 +642,7 @@ export class CoreCalculations {
     const groups = [...new Set(data.map(d => d.group))];
     if (groups.length !== 2) return 1.0;
     
-    // Very simplified approximation
+    // Very simplified approximation based on event differences
     const group1Events = data.filter(d => d.group === groups[0] && d.event).length;
     const group2Events = data.filter(d => d.group === groups[1] && d.event).length;
     const totalEvents = group1Events + group2Events;

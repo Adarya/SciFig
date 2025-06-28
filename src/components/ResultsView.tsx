@@ -96,6 +96,12 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
       methodsText += `test the association between ${analysisConfig.outcomeVariable} and ${analysisConfig.groupVariable} using an exact test. `;
     } else if (testName.includes('Survival') || testName.includes('Kaplan-Meier')) {
       methodsText += `analyze time-to-event data. `;
+      if (result.survival_data?.group_stats) {
+        const groupStats = Object.entries(result.survival_data.group_stats);
+        methodsText += groupStats.map(([group, stats]) => 
+          `${group} group (n=${stats.n}, events=${stats.events})`
+        ).join(' and ') + '. ';
+      }
     } else {
       methodsText += `compare ${analysisConfig.outcomeVariable} between groups. `;
     }
@@ -120,8 +126,83 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
     return methodsText;
   };
 
+  const generateFigureLegend = (result: StatisticalResult): string => {
+    if ('error' in result) return '';
+
+    const testName = result.test_name;
+    let legendText = '';
+    
+    if (testName.includes('T-Test') || testName.includes('Mann-Whitney')) {
+      legendText = `Box plots showing the distribution of ${analysisConfig.outcomeVariable} by ${analysisConfig.groupVariable}. `;
+      if (result.groups) {
+        const groupNames = Object.keys(result.groups);
+        const groupStats = Object.values(result.groups);
+        legendText += `Data are shown as median with interquartile range. `;
+        legendText += groupNames.map((name, i) => 
+          `${name}: n=${groupStats[i].n}`
+        ).join(', ') + '. ';
+      }
+      if (result.p_value < 0.05) {
+        const significance = result.p_value < 0.001 ? '***' : result.p_value < 0.01 ? '**' : '*';
+        legendText += `Statistical significance: ${significance} p${result.p_value < 0.001 ? '<0.001' : '=' + result.p_value.toFixed(3)}.`;
+      }
+    } else if (testName.includes('ANOVA') || testName.includes('Kruskal')) {
+      legendText = `Bar graph showing mean ± SEM of ${analysisConfig.outcomeVariable} by ${analysisConfig.groupVariable}. `;
+      legendText += `Statistical analysis by ${testName}. `;
+      if (result.p_value < 0.05) {
+        legendText += `p=${result.p_value.toFixed(3)}.`;
+      }
+    } else if (testName.includes('Chi-Square') || testName.includes('Fisher')) {
+      legendText = `Heatmap showing the contingency table for ${analysisConfig.outcomeVariable} vs ${analysisConfig.groupVariable}. `;
+      legendText += `Numbers represent observed frequencies. `;
+      legendText += `Statistical analysis by ${testName}, p=${result.p_value.toFixed(3)}.`;
+    } else if (testName.includes('Survival') || testName.includes('Kaplan-Meier')) {
+      legendText = `Kaplan-Meier survival curves showing probability of survival over time. `;
+      if (result.survival_data?.group_stats) {
+        const groupStats = Object.entries(result.survival_data.group_stats);
+        legendText += groupStats.map(([group, stats]) => 
+          `${group}: n=${stats.n}, events=${stats.events}, median survival=${stats.median_survival.toFixed(1)} time units`
+        ).join('; ') + '. ';
+      }
+      if (result.p_value < 0.05) {
+        legendText += `Log-rank test p=${result.p_value.toFixed(3)}.`;
+      } else {
+        legendText += `No significant difference between groups (p=${result.p_value.toFixed(3)}).`;
+      }
+    }
+    
+    return legendText;
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
+  };
+
+  const downloadFigure = () => {
+    const figure = generateFigure();
+    if (!figure) return;
+
+    // Create a temporary div to render the plot
+    const tempDiv = document.createElement('div');
+    tempDiv.style.position = 'absolute';
+    tempDiv.style.left = '-9999px';
+    document.body.appendChild(tempDiv);
+
+    // Use Plotly's downloadImage function
+    import('plotly.js').then((Plotly) => {
+      Plotly.newPlot(tempDiv, figure.data, figure.layout, figure.config).then(() => {
+        const filename = `${analysisConfig.type}_${Date.now()}`;
+        Plotly.downloadImage(tempDiv, {
+          format: exportFormat as any,
+          width: 500,
+          height: 400,
+          filename: filename,
+          scale: 3
+        }).then(() => {
+          document.body.removeChild(tempDiv);
+        });
+      });
+    });
   };
 
   const generateFigure = () => {
@@ -295,6 +376,34 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
                     </div>
                   )}
                 </div>
+
+                {/* Survival-specific statistics */}
+                {result.survival_data?.group_stats && (
+                  <div className="mt-6 pt-6 border-t border-blue-200">
+                    <h4 className="font-semibold text-gray-900 mb-3">Survival Statistics</h4>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {Object.entries(result.survival_data.group_stats).map(([group, stats]) => (
+                        <div key={group} className="bg-white rounded p-3">
+                          <h5 className="font-medium text-gray-900 mb-2">{group}</h5>
+                          <div className="space-y-1 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Sample size:</span>
+                              <span className="font-medium">{stats.n}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Events:</span>
+                              <span className="font-medium">{stats.events}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Median survival:</span>
+                              <span className="font-medium">{stats.median_survival.toFixed(1)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Assumptions Check */}
@@ -321,7 +430,6 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
                         </div>
                       );
                     })}
-                
                   </div>
                 </div>
               )}
@@ -345,8 +453,12 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
                       <Edit3 className="h-4 w-4" />
                       <span>Edit Labels</span>
                     </button>
-                    <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
-                      Download
+                    <button 
+                      onClick={downloadFigure}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                    >
+                      <Download className="h-4 w-4" />
+                      <span>Download</span>
                     </button>
                   </div>
                 </div>
@@ -390,12 +502,12 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
                   </div>
                 )}
                 
-                <div className="bg-gray-50 rounded-lg p-4">
+                <div className="bg-gray-50 rounded-lg p-2">
                   <Plot
                     data={figure.data}
                     layout={figure.layout}
                     config={figure.config}
-                    style={{ width: '100%', height: '500px' }}
+                    style={{ width: '100%', height: '420px' }}
                   />
                 </div>
               </motion.div>
@@ -421,6 +533,30 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
               <div className="bg-gray-50 rounded-lg p-4">
                 <p className="text-sm text-gray-700 leading-relaxed">
                   {generateMethodsText(result as StatisticalResult)}
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Figure Legend */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold text-gray-900">Figure Legend (Copy for Paper)</h3>
+                <button 
+                  onClick={() => copyToClipboard(generateFigureLegend(result as StatisticalResult))}
+                  className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  <Copy className="h-4 w-4" />
+                  <span>Copy</span>
+                </button>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-sm text-gray-700 leading-relaxed">
+                  {generateFigureLegend(result as StatisticalResult)}
                 </p>
               </div>
             </motion.div>
@@ -488,9 +624,12 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
             >
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Export & Share</h3>
               <div className="space-y-3">
-                <button className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2">
+                <button 
+                  onClick={downloadFigure}
+                  className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
+                >
                   <Download className="h-4 w-4" />
-                  <span>Download All</span>
+                  <span>Download Figure</span>
                 </button>
                 <button className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-200 transition-colors flex items-center justify-center space-x-2">
                   <Share className="h-4 w-4" />
