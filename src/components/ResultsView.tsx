@@ -12,10 +12,12 @@ import {
   CheckCircle,
   AlertTriangle,
   Loader,
-  Edit3
+  Edit3,
+  Code
 } from 'lucide-react';
 import { EngineOrchestrator, AnalysisWorkflow, StatisticalResult } from '../utils/statisticalEngine';
 import { FigureGenerator } from '../utils/figureGenerator';
+import VisualizationEditor from './VisualizationEditor';
 
 interface ResultsViewProps {
   analysisConfig: any;
@@ -30,6 +32,8 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
   const [analysisResults, setAnalysisResults] = useState<AnalysisWorkflow | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showEditor, setShowEditor] = useState(false);
+  const [currentFigure, setCurrentFigure] = useState<any>(null);
   
   // Custom labels state
   const [customLabels, setCustomLabels] = useState({
@@ -75,6 +79,12 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
       }
       
       setAnalysisResults(results);
+      
+      // Generate initial figure
+      if (!('error' in results.final_result)) {
+        const figure = generateFigure(results.final_result as StatisticalResult);
+        setCurrentFigure(figure);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Analysis failed');
     } finally {
@@ -179,8 +189,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
   };
 
   const downloadFigure = () => {
-    const figure = generateFigure();
-    if (!figure) return;
+    if (!currentFigure) return;
 
     // Create a temporary div to render the plot
     const tempDiv = document.createElement('div');
@@ -190,7 +199,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
 
     // Use Plotly's downloadImage function
     import('plotly.js').then((Plotly) => {
-      Plotly.newPlot(tempDiv, figure.data, figure.layout, figure.config).then(() => {
+      Plotly.newPlot(tempDiv, currentFigure.data, currentFigure.layout, currentFigure.config).then(() => {
         const filename = `${analysisConfig.type}_${Date.now()}`;
         Plotly.downloadImage(tempDiv, {
           format: exportFormat as any,
@@ -205,18 +214,16 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
     });
   };
 
-  const generateFigure = () => {
-    if (!analysisResults || 'error' in analysisResults.final_result) return null;
+  const generateFigure = (result?: StatisticalResult) => {
+    if (!result || 'error' in result) return null;
 
-    const result = analysisResults.final_result as StatisticalResult;
-    
+    const labels = {
+      x: customLabels.x || undefined,
+      y: customLabels.y || undefined,
+      title: customLabels.title || undefined
+    };
+
     try {
-      const labels = {
-        x: customLabels.x || undefined,
-        y: customLabels.y || undefined,
-        title: customLabels.title || undefined
-      };
-
       if (result.test_name.includes('T-Test') || result.test_name.includes('Mann-Whitney')) {
         return FigureGenerator.generateBoxPlot(
           analysisConfig.data,
@@ -252,6 +259,10 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
     }
     
     return null;
+  };
+
+  const handleFigureUpdate = (newFigure: any) => {
+    setCurrentFigure(newFigure);
   };
 
   if (isAnalyzing) {
@@ -298,7 +309,6 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
 
   const result = analysisResults.final_result;
   const isError = 'error' in result;
-  const figure = !isError ? generateFigure() : null;
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -436,7 +446,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
             </motion.div>
 
             {/* Generated Figure */}
-            {figure && (
+            {currentFigure && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -452,6 +462,13 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
                     >
                       <Edit3 className="h-4 w-4" />
                       <span>Edit Labels</span>
+                    </button>
+                    <button 
+                      onClick={() => setShowEditor(!showEditor)}
+                      className="bg-purple-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors flex items-center space-x-2"
+                    >
+                      <Code className="h-4 w-4" />
+                      <span>Advanced Editor</span>
                     </button>
                     <button 
                       onClick={downloadFigure}
@@ -499,17 +516,42 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
                         />
                       </div>
                     </div>
+                    <button
+                      onClick={() => {
+                        const newFigure = generateFigure(result as StatisticalResult);
+                        if (newFigure) setCurrentFigure(newFigure);
+                      }}
+                      className="mt-3 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                    >
+                      Apply Changes
+                    </button>
                   </div>
                 )}
                 
                 <div className="bg-gray-50 rounded-lg p-2">
                   <Plot
-                    data={figure.data}
-                    layout={figure.layout}
-                    config={figure.config}
+                    data={currentFigure.data}
+                    layout={currentFigure.layout}
+                    config={currentFigure.config}
                     style={{ width: '100%', height: '420px' }}
                   />
                 </div>
+              </motion.div>
+            )}
+
+            {/* Interactive Editor */}
+            {showEditor && currentFigure && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                <VisualizationEditor
+                  analysisConfig={analysisConfig}
+                  result={result as StatisticalResult}
+                  initialFigure={currentFigure}
+                  onFigureUpdate={handleFigureUpdate}
+                />
               </motion.div>
             )}
 
