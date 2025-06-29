@@ -69,8 +69,11 @@ const VisualizationEditor: React.FC<VisualizationEditorProps> = ({
   // History
   const [changeHistory, setChangeHistory] = useState<CodeChange[]>([]);
   
+  // Refs for proper cleanup and sizing
   const editorRef = useRef<any>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const plotContainerRef = useRef<HTMLDivElement>(null);
+  const plotRef = useRef<any>(null);
 
   useEffect(() => {
     // Generate initial code based on the figure
@@ -91,6 +94,20 @@ const VisualizationEditor: React.FC<VisualizationEditorProps> = ({
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
+  // Fix for figure distortion - ensure proper cleanup and re-rendering
+  useEffect(() => {
+    if (previewFigure && plotRef.current) {
+      // Force a clean re-render of the plot
+      const timeoutId = setTimeout(() => {
+        if (plotRef.current && plotRef.current.resizeHandler) {
+          plotRef.current.resizeHandler();
+        }
+      }, 100);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [previewFigure, showPreview]);
+
   const generateFigureCode = (config: any, result: StatisticalResult): string => {
     const testType = result.test_name;
     
@@ -108,7 +125,7 @@ const VisualizationEditor: React.FC<VisualizationEditorProps> = ({
   };
 
   const generateBoxPlotCode = (config: any, result: StatisticalResult): string => {
-    return `// Box Plot Configuration
+    return `// Box Plot Configuration - Fixed Layout
 const data = [
   {
     y: groupData1, // ${config.groupVariable} = Group1
@@ -142,41 +159,61 @@ const layout = {
   title: {
     text: '${config.outcomeVariable} by ${config.groupVariable}',
     font: { size: 18, family: 'Arial, sans-serif', color: '#000' },
-    x: 0.5
+    x: 0.5,
+    pad: { t: 20 }
   },
   xaxis: {
     title: {
       text: '${config.groupVariable}',
-      font: { size: 14, family: 'Arial, sans-serif', color: '#000' }
+      font: { size: 14, family: 'Arial, sans-serif', color: '#000' },
+      standoff: 20
     },
     showgrid: false,
     linecolor: '#000',
     linewidth: 2,
-    tickfont: { size: 12, family: 'Arial, sans-serif', color: '#000' }
+    tickfont: { size: 12, family: 'Arial, sans-serif', color: '#000' },
+    automargin: true
   },
   yaxis: {
     title: {
       text: '${config.outcomeVariable}',
-      font: { size: 14, family: 'Arial, sans-serif', color: '#000' }
+      font: { size: 14, family: 'Arial, sans-serif', color: '#000' },
+      standoff: 20
     },
     showgrid: true,
     gridcolor: '#E5E5E5',
     linecolor: '#000',
     linewidth: 2,
-    tickfont: { size: 12, family: 'Arial, sans-serif', color: '#000' }
+    tickfont: { size: 12, family: 'Arial, sans-serif', color: '#000' },
+    automargin: true
   },
   showlegend: false,
   plot_bgcolor: 'white',
   paper_bgcolor: 'white',
-  margin: { l: 60, r: 20, t: 60, b: 60 },
+  margin: { l: 80, r: 40, t: 80, b: 80 },
   width: 500,
-  height: 400
+  height: 400,
+  autosize: false
 };
 
-// Statistical annotation
+// Configuration for stable rendering
+const config = {
+  displayModeBar: true,
+  responsive: false,
+  staticPlot: false,
+  toImageButtonOptions: {
+    format: 'png',
+    filename: 'figure',
+    height: 400,
+    width: 500,
+    scale: 2
+  }
+};
+
 ${result.p_value < 0.05 ? `
+// Statistical annotation
 const annotations = [{
-  x: 0.5, y: maxY * 1.18, xref: 'paper', yref: 'y',
+  x: 0.5, y: 1.15, xref: 'paper', yref: 'paper',
   text: '${result.p_value < 0.001 ? '***' : result.p_value < 0.01 ? '**' : '*'}',
   showarrow: false,
   font: { size: 18, color: '#000', family: 'Arial, sans-serif' }
@@ -185,7 +222,7 @@ layout.annotations = annotations;` : ''}`;
   };
 
   const generateBarPlotCode = (config: any, result: StatisticalResult): string => {
-    return `// Bar Plot Configuration
+    return `// Bar Plot Configuration - Fixed Layout
 const data = [{
   x: groupNames,
   y: groupMeans,
@@ -208,40 +245,52 @@ const layout = {
   title: {
     text: 'Mean ${config.outcomeVariable} by ${config.groupVariable}',
     font: { size: 18, family: 'Arial, sans-serif', color: '#000' },
-    x: 0.5
+    x: 0.5,
+    pad: { t: 20 }
   },
   xaxis: {
     title: {
       text: '${config.groupVariable}',
-      font: { size: 14, family: 'Arial, sans-serif', color: '#000' }
+      font: { size: 14, family: 'Arial, sans-serif', color: '#000' },
+      standoff: 20
     },
     showgrid: false,
     linecolor: '#000',
     linewidth: 2,
-    tickfont: { size: 12, family: 'Arial, sans-serif', color: '#000' }
+    tickfont: { size: 12, family: 'Arial, sans-serif', color: '#000' },
+    automargin: true
   },
   yaxis: {
     title: {
       text: 'Mean ${config.outcomeVariable}',
-      font: { size: 14, family: 'Arial, sans-serif', color: '#000' }
+      font: { size: 14, family: 'Arial, sans-serif', color: '#000' },
+      standoff: 20
     },
     showgrid: true,
     gridcolor: '#E5E5E5',
     linecolor: '#000',
     linewidth: 2,
-    tickfont: { size: 12, family: 'Arial, sans-serif', color: '#000' }
+    tickfont: { size: 12, family: 'Arial, sans-serif', color: '#000' },
+    automargin: true
   },
   showlegend: false,
   plot_bgcolor: 'white',
   paper_bgcolor: 'white',
-  margin: { l: 60, r: 20, t: 60, b: 60 },
+  margin: { l: 80, r: 40, t: 80, b: 80 },
   width: 500,
-  height: 400
+  height: 400,
+  autosize: false
+};
+
+const config = {
+  displayModeBar: true,
+  responsive: false,
+  staticPlot: false
 };`;
   };
 
   const generateHeatmapCode = (config: any, result: StatisticalResult): string => {
-    return `// Heatmap Configuration
+    return `// Heatmap Configuration - Fixed Layout
 const data = [{
   z: contingencyMatrix,
   type: 'heatmap',
@@ -263,39 +312,51 @@ const layout = {
   title: {
     text: '${config.outcomeVariable} vs ${config.groupVariable}',
     font: { size: 18, family: 'Arial, sans-serif', color: '#000' },
-    x: 0.5
+    x: 0.5,
+    pad: { t: 20 }
   },
   xaxis: {
     title: {
       text: '${config.outcomeVariable}',
-      font: { size: 14, family: 'Arial, sans-serif', color: '#000' }
+      font: { size: 14, family: 'Arial, sans-serif', color: '#000' },
+      standoff: 20
     },
     showgrid: false,
     linecolor: '#000',
     linewidth: 2,
-    tickfont: { size: 12, family: 'Arial, sans-serif', color: '#000' }
+    tickfont: { size: 12, family: 'Arial, sans-serif', color: '#000' },
+    automargin: true
   },
   yaxis: {
     title: {
       text: '${config.groupVariable}',
-      font: { size: 14, family: 'Arial, sans-serif', color: '#000' }
+      font: { size: 14, family: 'Arial, sans-serif', color: '#000' },
+      standoff: 20
     },
     showgrid: false,
     linecolor: '#000',
     linewidth: 2,
-    tickfont: { size: 12, family: 'Arial, sans-serif', color: '#000' }
+    tickfont: { size: 12, family: 'Arial, sans-serif', color: '#000' },
+    automargin: true
   },
   showlegend: false,
   plot_bgcolor: 'white',
   paper_bgcolor: 'white',
-  margin: { l: 80, r: 20, t: 60, b: 80 },
+  margin: { l: 100, r: 40, t: 80, b: 100 },
   width: 500,
-  height: 400
+  height: 400,
+  autosize: false
+};
+
+const config = {
+  displayModeBar: true,
+  responsive: false,
+  staticPlot: false
 };`;
   };
 
   const generateSurvivalCode = (config: any, result: StatisticalResult): string => {
-    return `// Survival Curve Configuration
+    return `// Survival Curve Configuration - Fixed Layout
 const data = survivalGroups.map((group, index) => ({
   x: group.times,
   y: group.survival,
@@ -313,29 +374,35 @@ const layout = {
   title: {
     text: 'Kaplan-Meier Survival Curves',
     font: { size: 18, family: 'Arial, sans-serif', color: '#000' },
-    x: 0.5
+    x: 0.5,
+    pad: { t: 20 }
   },
   xaxis: {
     title: {
       text: 'Time',
-      font: { size: 14, family: 'Arial, sans-serif', color: '#000' }
+      font: { size: 14, family: 'Arial, sans-serif', color: '#000' },
+      standoff: 20
     },
     showgrid: true,
     gridcolor: '#E5E5E5',
     linecolor: '#000',
     linewidth: 2,
-    tickfont: { size: 12, family: 'Arial, sans-serif', color: '#000' }
+    tickfont: { size: 12, family: 'Arial, sans-serif', color: '#000' },
+    automargin: true
   },
   yaxis: {
     title: {
       text: 'Survival Probability',
-      font: { size: 14, family: 'Arial, sans-serif', color: '#000' }
+      font: { size: 14, family: 'Arial, sans-serif', color: '#000' },
+      standoff: 20
     },
     showgrid: true,
     gridcolor: '#E5E5E5',
     linecolor: '#000',
     linewidth: 2,
-    tickfont: { size: 12, family: 'Arial, sans-serif', color: '#000' }
+    tickfont: { size: 12, family: 'Arial, sans-serif', color: '#000' },
+    automargin: true,
+    range: [0, 1]
   },
   showlegend: true,
   legend: {
@@ -347,13 +414,20 @@ const layout = {
   },
   plot_bgcolor: 'white',
   paper_bgcolor: 'white',
-  margin: { l: 60, r: 20, t: 60, b: 60 },
+  margin: { l: 80, r: 40, t: 80, b: 80 },
   width: 500,
-  height: 400
+  height: 400,
+  autosize: false
 };
 
-// Add statistical annotations
+const config = {
+  displayModeBar: true,
+  responsive: false,
+  staticPlot: false
+};
+
 ${result.p_value < 0.05 ? `
+// Add statistical annotations
 const annotations = [{
   x: 0.02, y: 0.98, xref: 'paper', yref: 'paper',
   text: 'p = ${result.p_value.toFixed(3)}',
@@ -374,15 +448,29 @@ layout.annotations = annotations;` : ''}`;
       // Simulate code execution and figure generation
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // For demo purposes, we'll regenerate the figure with current settings
-      // In a real implementation, this would execute the actual code
-      const newFigure = FigureGenerator.generateBoxPlot(
-        analysisConfig.data,
-        analysisConfig.groupVariable,
-        analysisConfig.outcomeVariable,
-        result,
-        'nature'
-      );
+      // Create a new figure with fixed dimensions and proper configuration
+      const newFigure = {
+        ...initialFigure,
+        layout: {
+          ...initialFigure.layout,
+          autosize: false,
+          width: 500,
+          height: 400,
+          margin: { l: 80, r: 40, t: 80, b: 80 }
+        },
+        config: {
+          displayModeBar: true,
+          responsive: false,
+          staticPlot: false,
+          toImageButtonOptions: {
+            format: 'png',
+            filename: 'figure',
+            height: 400,
+            width: 500,
+            scale: 2
+          }
+        }
+      };
       
       setPreviewFigure(newFigure);
       onFigureUpdate(newFigure);
@@ -636,7 +724,8 @@ layout.annotations = annotations;` : ''}`;
                       roundedSelection: false,
                       scrollBeyondLastLine: false,
                       automaticLayout: true,
-                      theme: 'vs-light'
+                      theme: 'vs-light',
+                      wordWrap: 'on'
                     }}
                   />
                 </div>
@@ -822,14 +911,33 @@ layout.annotations = annotations;` : ''}`;
               </div>
             </div>
 
-            {/* Figure Preview */}
-            <div className="border border-gray-300 rounded-lg p-4 bg-gray-50">
+            {/* Figure Preview - Fixed Container */}
+            <div 
+              ref={plotContainerRef}
+              className="border border-gray-300 rounded-lg p-4 bg-gray-50"
+              style={{ width: '100%', height: '450px' }}
+            >
               {previewFigure && (
                 <Plot
+                  ref={plotRef}
                   data={previewFigure.data}
-                  layout={previewFigure.layout}
-                  config={previewFigure.config}
-                  style={{ width: '100%', height: '400px' }}
+                  layout={{
+                    ...previewFigure.layout,
+                    autosize: false,
+                    width: 500,
+                    height: 400
+                  }}
+                  config={{
+                    ...previewFigure.config,
+                    responsive: false,
+                    staticPlot: false
+                  }}
+                  style={{ width: '100%', height: '100%' }}
+                  useResizeHandler={false}
+                  onInitialized={(figure) => {
+                    // Store reference for manual resize handling
+                    plotRef.current = figure;
+                  }}
                 />
               )}
             </div>
