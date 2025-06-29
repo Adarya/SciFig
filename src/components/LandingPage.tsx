@@ -12,16 +12,29 @@ import {
   CheckCircle,
   Star
 } from 'lucide-react';
+import { User } from '../utils/supabase';
 
 interface LandingPageProps {
-  onLogin: (userData: any) => void;
+  onLogin: (mode?: 'signin' | 'signup') => void;
   onNavigate: (view: string) => void;
+  user: User | null;
 }
 
-const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onNavigate }) => {
-  const handleLogin = () => {
-    // Simulate login
-    onLogin({ name: 'Dr. Smith', email: 'dr.smith@example.com' });
+const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onNavigate, user }) => {
+  const handleGetStarted = () => {
+    if (user) {
+      onNavigate('dashboard');
+    } else {
+      onLogin('signup');
+    }
+  };
+
+  const handleSignIn = () => {
+    if (user) {
+      onNavigate('dashboard');
+    } else {
+      onLogin('signin');
+    }
   };
 
   const handleDemo = () => {
@@ -42,25 +55,41 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onNavigate }) => {
             </div>
             <div className="hidden md:flex items-center space-x-8">
               <a href="#features" className="text-gray-700 hover:text-blue-600 transition-colors">Features</a>
-              <a href="#pricing" className="text-gray-700 hover:text-blue-600 transition-colors">Pricing</a>
+              <button 
+                onClick={() => onNavigate('pricing')}
+                className="text-gray-700 hover:text-blue-600 transition-colors"
+              >
+                Pricing
+              </button>
               <button 
                 onClick={handleDemo}
                 className="text-gray-700 hover:text-blue-600 transition-colors"
               >
                 Demo
               </button>
-              <button 
-                onClick={handleLogin}
-                className="text-blue-600 hover:text-blue-700 transition-colors"
-              >
-                Login
-              </button>
-              <button 
-                onClick={handleLogin}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Start Free
-              </button>
+              {user ? (
+                <button 
+                  onClick={() => onNavigate('dashboard')}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Dashboard
+                </button>
+              ) : (
+                <>
+                  <button 
+                    onClick={handleSignIn}
+                    className="text-blue-600 hover:text-blue-700 transition-colors"
+                  >
+                    Login
+                  </button>
+                  <button 
+                    onClick={handleGetStarted}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Start Free
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -101,10 +130,10 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onNavigate }) => {
               Try Demo
             </button>
             <button 
-              onClick={handleLogin}
+              onClick={handleGetStarted}
               className="bg-white text-blue-600 px-8 py-4 rounded-xl text-lg font-semibold border-2 border-blue-600 hover:bg-blue-50 transition-all transform hover:scale-105 flex items-center justify-center gap-2"
             >
-              Upload Your Data
+              {user ? 'Go to Dashboard' : 'Start Free Trial'}
               <ArrowRight className="h-5 w-5" />
             </button>
           </motion.div>
@@ -232,16 +261,16 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onNavigate }) => {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button 
-              onClick={handleLogin}
+              onClick={handleGetStarted}
               className="bg-white text-blue-600 px-8 py-4 rounded-xl text-lg font-semibold hover:bg-gray-100 transition-all transform hover:scale-105"
             >
-              Start Free Trial
+              {user ? 'Go to Dashboard' : 'Start Free Trial'}
             </button>
             <button 
-              onClick={handleDemo}
+              onClick={() => onNavigate('pricing')}
               className="bg-transparent text-white px-8 py-4 rounded-xl text-lg font-semibold border-2 border-white hover:bg-white hover:text-blue-600 transition-all transform hover:scale-105"
             >
-              Watch Demo
+              View Pricing
             </button>
           </div>
         </div>
