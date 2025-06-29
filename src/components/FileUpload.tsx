@@ -1,18 +1,24 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion } from 'framer-motion';
-import { Upload, FileText, CheckCircle, Shield, AlertCircle } from 'lucide-react';
+import { Upload, FileText, CheckCircle, Shield, AlertCircle, Crown, Zap } from 'lucide-react';
 import { parseCSVFile, ParsedData } from '../utils/csvParser';
+import { User } from '../utils/supabase';
 
 interface FileUploadProps {
   onFileUploaded: (data: ParsedData) => void;
+  disabled?: boolean;
+  user?: User | null;
+  onLogin?: (mode?: 'signin' | 'signup') => void;
 }
 
-const FileUpload: React.FC<FileUploadProps> = ({ onFileUploaded }) => {
+const FileUpload: React.FC<FileUploadProps> = ({ onFileUploaded, disabled = false, user, onLogin }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    if (disabled) return;
+
     const file = acceptedFiles[0];
     if (!file) return;
 
@@ -27,7 +33,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploaded }) => {
     } finally {
       setIsProcessing(false);
     }
-  }, [onFileUploaded]);
+  }, [onFileUploaded, disabled]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -37,10 +43,12 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploaded }) => {
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']
     },
     multiple: false,
-    disabled: isProcessing
+    disabled: isProcessing || disabled
   });
 
   const generateSampleData = () => {
+    if (disabled) return;
+
     // Generate realistic clinical trial data
     const treatments = ['Drug A', 'Drug B', 'Placebo'];
     const genders = ['Male', 'Female'];
@@ -88,6 +96,12 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploaded }) => {
     onFileUploaded(mockParsedData);
   };
 
+  const handleUpgradeClick = () => {
+    if (onLogin) {
+      onLogin('signup');
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="text-center mb-8">
@@ -95,6 +109,11 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploaded }) => {
         <p className="text-lg text-gray-600">
           Upload your dataset to get started with AI-powered statistical analysis
         </p>
+        {!user && (
+          <p className="text-sm text-blue-600 mt-2">
+            ✨ Try 2 free analyses without signing up!
+          </p>
+        )}
       </div>
 
       {error && (
@@ -112,20 +131,26 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploaded }) => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className={`bg-white rounded-2xl shadow-lg border-2 border-dashed p-12 text-center transition-colors ${
-          isDragActive 
+          disabled 
+            ? 'border-gray-300 bg-gray-50 cursor-not-allowed' 
+            : isDragActive 
             ? 'border-blue-400 bg-blue-50' 
             : isProcessing 
             ? 'border-gray-300 bg-gray-50' 
             : 'border-gray-300 hover:border-blue-400'
         }`}
-        {...getRootProps()}
+        {...(disabled ? {} : getRootProps())}
       >
-        <input {...getInputProps()} />
+        {!disabled && <input {...getInputProps()} />}
         
         <div className="space-y-6">
-          <div className="mx-auto w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center">
+          <div className={`mx-auto w-24 h-24 rounded-full flex items-center justify-center ${
+            disabled ? 'bg-gray-100' : 'bg-blue-50'
+          }`}>
             {isProcessing ? (
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            ) : disabled ? (
+              <AlertCircle className="h-12 w-12 text-gray-400" />
             ) : (
               <Upload className={`h-12 w-12 ${isDragActive ? 'text-blue-600 animate-bounce' : 'text-blue-500'}`} />
             )}
@@ -135,12 +160,14 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploaded }) => {
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
               {isProcessing 
                 ? 'Processing your file...' 
+                : disabled
+                ? 'Free trial limit reached'
                 : isDragActive 
                 ? 'Drop your file here' 
                 : 'Drop your CSV file here'
               }
             </h3>
-            {!isProcessing && (
+            {!isProcessing && !disabled && (
               <>
                 <p className="text-gray-600 mb-4">or click to browse</p>
                 <p className="text-sm text-gray-500">
@@ -148,14 +175,28 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploaded }) => {
                 </p>
               </>
             )}
+            {disabled && (
+              <p className="text-gray-600 mb-4">
+                Sign up to continue with unlimited statistical analysis
+              </p>
+            )}
           </div>
 
-          {!isProcessing && (
+          {!isProcessing && !disabled && (
             <button 
               className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
               disabled={isProcessing}
             >
               Choose File
+            </button>
+          )}
+
+          {disabled && (
+            <button 
+              onClick={handleUpgradeClick}
+              className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+            >
+              Sign Up for Unlimited Access
             </button>
           )}
         </div>
@@ -208,12 +249,48 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploaded }) => {
         <p className="text-gray-600 mb-4">Don't have data ready? Try our sample dataset</p>
         <button 
           onClick={generateSampleData}
-          disabled={isProcessing}
-          className="text-blue-600 hover:text-blue-700 font-medium underline disabled:opacity-50"
+          disabled={isProcessing || disabled}
+          className={`font-medium underline transition-colors ${
+            disabled 
+              ? 'text-gray-400 cursor-not-allowed' 
+              : 'text-blue-600 hover:text-blue-700'
+          }`}
         >
-          Use Sample Clinical Trial Data (120 patients)
+          {disabled ? 'Sign up to use sample data' : 'Use Sample Clinical Trial Data (120 patients)'}
         </button>
       </div>
+
+      {/* Upgrade Prompt for Free Users */}
+      {!user && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="mt-12 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200 p-6"
+        >
+          <div className="flex items-center space-x-3 mb-4">
+            <Crown className="h-6 w-6 text-blue-600" />
+            <h3 className="text-lg font-semibold text-gray-900">Unlock Full Statistical Power</h3>
+          </div>
+          <p className="text-gray-700 mb-4">
+            Get unlimited analyses, advanced statistical tests, and publication-ready outputs.
+          </p>
+          <div className="flex items-center space-x-4">
+            <button 
+              onClick={handleUpgradeClick}
+              className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+            >
+              Start Free Trial
+            </button>
+            <button 
+              onClick={() => onLogin && onLogin('signin')}
+              className="text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Already have an account? Sign in →
+            </button>
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 };

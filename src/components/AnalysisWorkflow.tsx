@@ -10,21 +10,26 @@ import {
   Brain,
   Download,
   Share,
-  Zap
+  Zap,
+  Crown,
+  AlertTriangle
 } from 'lucide-react';
 import FileUpload from './FileUpload';
 import DataPreview from './DataPreview';
 import AnalysisSelection from './AnalysisSelection';
 import ResultsView from './ResultsView';
 import { ParsedData } from '../utils/csvParser';
+import { User } from '../utils/supabase';
 
 interface AnalysisWorkflowProps {
   onNavigate: (view: string) => void;
+  user?: User | null;
+  onLogin?: (mode?: 'signin' | 'signup') => void;
 }
 
 type WorkflowStep = 'upload' | 'preview' | 'analysis' | 'results';
 
-const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate }) => {
+const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, onLogin }) => {
   const [currentStep, setCurrentStep] = useState<WorkflowStep>('upload');
   const [uploadedData, setUploadedData] = useState<ParsedData | null>(null);
   const [outcomeVariable, setOutcomeVariable] = useState<string>('');
@@ -32,6 +37,12 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate }) => {
   const [timeVariable, setTimeVariable] = useState<string>('');
   const [eventVariable, setEventVariable] = useState<string>('');
   const [analysisConfig, setAnalysisConfig] = useState<any>(null);
+  const [analysisCount, setAnalysisCount] = useState(0);
+
+  // Free tier limits
+  const FREE_ANALYSIS_LIMIT = 2;
+  const isFreeTier = !user;
+  const hasReachedLimit = isFreeTier && analysisCount >= FREE_ANALYSIS_LIMIT;
 
   const steps = [
     { id: 'upload', title: 'Upload Data', icon: Upload },
@@ -57,6 +68,10 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate }) => {
   };
 
   const handleFileUploaded = (data: ParsedData) => {
+    if (hasReachedLimit) {
+      return; // Don't process if limit reached
+    }
+
     setUploadedData(data);
     
     // Auto-detect variables
@@ -98,8 +113,19 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate }) => {
   };
 
   const handleAnalysisSelected = (config: any) => {
+    if (hasReachedLimit) {
+      return; // Don't process if limit reached
+    }
+
     setAnalysisConfig(config);
+    setAnalysisCount(prev => prev + 1);
     handleNext();
+  };
+
+  const handleUpgradeClick = () => {
+    if (onLogin) {
+      onLogin('signup');
+    }
   };
 
   const renderStepContent = () => {
@@ -108,6 +134,9 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate }) => {
         return (
           <FileUpload 
             onFileUploaded={handleFileUploaded}
+            disabled={hasReachedLimit}
+            user={user}
+            onLogin={onLogin}
           />
         );
       case 'preview':
@@ -128,6 +157,9 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate }) => {
             eventVariable={eventVariable}
             onAnalysisSelected={handleAnalysisSelected}
             onBack={handleBack}
+            disabled={hasReachedLimit}
+            user={user}
+            onLogin={onLogin}
           />
         ) : null;
       case 'results':
@@ -144,6 +176,8 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate }) => {
               setTimeVariable('');
               setEventVariable('');
             }}
+            user={user}
+            onLogin={onLogin}
           />
         ) : null;
       default:
@@ -159,18 +193,79 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate }) => {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
               <button 
-                onClick={() => onNavigate('dashboard')}
+                onClick={() => onNavigate('landing')}
                 className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
               >
                 <ArrowLeft className="h-4 w-4" />
-                <span>Back to Dashboard</span>
+                <span>Back</span>
               </button>
               <div className="h-6 w-px bg-gray-300" />
-              <h1 className="text-xl font-semibold text-gray-900">New Analysis</h1>
+              <h1 className="text-xl font-semibold text-gray-900">Statistical Analysis</h1>
+              {isFreeTier && (
+                <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">
+                  Free Trial
+                </span>
+              )}
             </div>
+            {isFreeTier && (
+              <button
+                onClick={handleUpgradeClick}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+              >
+                <Crown className="h-4 w-4" />
+                <span>Upgrade for Unlimited</span>
+              </button>
+            )}
           </div>
         </div>
       </header>
+
+      {/* Free Tier Usage Banner */}
+      {isFreeTier && (
+        <div className="bg-white border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+            <div className={`p-4 rounded-lg border ${
+              hasReachedLimit 
+                ? 'bg-red-50 border-red-200' 
+                : 'bg-blue-50 border-blue-200'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  {hasReachedLimit ? (
+                    <AlertTriangle className="h-5 w-5 text-red-600" />
+                  ) : (
+                    <Zap className="h-5 w-5 text-blue-600" />
+                  )}
+                  <div>
+                    <p className={`font-medium ${hasReachedLimit ? 'text-red-900' : 'text-blue-900'}`}>
+                      {hasReachedLimit 
+                        ? 'Free analysis limit reached' 
+                        : `Free Trial: ${analysisCount}/${FREE_ANALYSIS_LIMIT} analyses used`
+                      }
+                    </p>
+                    <p className={`text-sm ${hasReachedLimit ? 'text-red-700' : 'text-blue-700'}`}>
+                      {hasReachedLimit 
+                        ? 'Sign up for unlimited statistical analysis and advanced features'
+                        : 'Sign up for unlimited analyses and publication-ready outputs'
+                      }
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleUpgradeClick}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    hasReachedLimit
+                      ? 'bg-red-600 text-white hover:bg-red-700'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  {hasReachedLimit ? 'Sign Up Now' : 'Upgrade'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Progress Steps */}
       <div className="bg-white border-b border-gray-200">

@@ -60,16 +60,6 @@ function App() {
     }
   };
 
-  const handleNavigateToAnalysis = () => {
-    if (!user) {
-      // Show auth modal for full analysis workflow
-      setAuthModalMode('signup');
-      setShowAuthModal(true);
-    } else {
-      setCurrentView('analysis');
-    }
-  };
-
   const renderCurrentView = () => {
     switch (currentView) {
       case 'landing':
@@ -95,16 +85,8 @@ function App() {
           />
         );
       case 'analysis':
-        return user ? (
-          <AnalysisWorkflow onNavigate={setCurrentView} />
-        ) : (
-          // Redirect to landing with auth prompt for full analysis
-          <LandingPage 
-            onLogin={handleLogin} 
-            onNavigate={setCurrentView}
-            user={user}
-          />
-        );
+        // Allow analysis workflow without authentication - just like figure analyzer
+        return <AnalysisWorkflow onNavigate={setCurrentView} user={user} onLogin={handleLogin} />;
       case 'figure-analyzer':
         // Allow figure analyzer without authentication
         return <FigureAnalyzer onNavigate={setCurrentView} user={user} onLogin={handleLogin} />;

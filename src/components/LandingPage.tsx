@@ -10,7 +10,8 @@ import {
   ArrowRight,
   Play,
   CheckCircle,
-  Star
+  Star,
+  Upload
 } from 'lucide-react';
 import { User } from '../utils/supabase';
 
@@ -39,6 +40,10 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onNavigate, user }) 
 
   const handleDemo = () => {
     onNavigate('figure-analyzer');
+  };
+
+  const handleTryAnalysis = () => {
+    onNavigate('analysis');
   };
 
   return (
@@ -123,18 +128,18 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onNavigate, user }) 
             className="flex flex-col sm:flex-row gap-4 justify-center mb-16"
           >
             <button 
-              onClick={handleDemo}
+              onClick={handleTryAnalysis}
               className="bg-blue-600 text-white px-8 py-4 rounded-xl text-lg font-semibold hover:bg-blue-700 transition-all transform hover:scale-105 flex items-center justify-center gap-2"
             >
-              <Play className="h-5 w-5" />
-              Try Free Demo
+              <Upload className="h-5 w-5" />
+              Try Full Analysis Free
             </button>
             <button 
-              onClick={handleGetStarted}
+              onClick={handleDemo}
               className="bg-white text-blue-600 px-8 py-4 rounded-xl text-lg font-semibold border-2 border-blue-600 hover:bg-blue-50 transition-all transform hover:scale-105 flex items-center justify-center gap-2"
             >
-              {user ? 'Go to Dashboard' : 'Start Free Trial'}
-              <ArrowRight className="h-5 w-5" />
+              <Play className="h-5 w-5" />
+              Try Figure Analyzer
             </button>
           </motion.div>
 
@@ -162,26 +167,52 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onNavigate, user }) 
             </div>
           </motion.div>
 
-          {/* Free Demo CTA */}
+          {/* Free Demo CTAs */}
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.5 }}
-            className="bg-gradient-to-r from-green-50 to-blue-50 rounded-2xl p-8 border border-green-200 mb-20"
+            className="grid md:grid-cols-2 gap-8 mb-20"
           >
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              🎯 Try Figure Analysis Free - No Signup Required!
-            </h2>
-            <p className="text-gray-700 mb-6 max-w-2xl mx-auto">
-              Upload any scientific figure and get instant AI-powered feedback on publication readiness, 
-              accessibility, and design improvements. Perfect for testing our capabilities!
-            </p>
-            <button 
-              onClick={handleDemo}
-              className="bg-green-600 text-white px-8 py-4 rounded-xl text-lg font-semibold hover:bg-green-700 transition-all transform hover:scale-105"
-            >
-              Analyze a Figure Now →
-            </button>
+            {/* Full Analysis CTA */}
+            <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-8 border border-blue-200">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                🧪 Try Full Statistical Analysis Free
+              </h2>
+              <p className="text-gray-700 mb-6">
+                Upload your data and run complete statistical analyses including t-tests, ANOVA, 
+                survival analysis, and more. Get publication-ready figures and methods text.
+              </p>
+              <button 
+                onClick={handleTryAnalysis}
+                className="bg-blue-600 text-white px-8 py-4 rounded-xl text-lg font-semibold hover:bg-blue-700 transition-all transform hover:scale-105 w-full"
+              >
+                Start Analysis Now →
+              </button>
+              <p className="text-sm text-blue-600 mt-3">
+                ✨ 2 free analyses • No signup required
+              </p>
+            </div>
+
+            {/* Figure Analysis CTA */}
+            <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-2xl p-8 border border-green-200">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                🎯 Analyze Existing Figures Free
+              </h2>
+              <p className="text-gray-700 mb-6">
+                Upload any scientific figure and get instant AI-powered feedback on publication readiness, 
+                accessibility, and design improvements.
+              </p>
+              <button 
+                onClick={handleDemo}
+                className="bg-green-600 text-white px-8 py-4 rounded-xl text-lg font-semibold hover:bg-green-700 transition-all transform hover:scale-105 w-full"
+              >
+                Analyze Figure Now →
+              </button>
+              <p className="text-sm text-green-600 mt-3">
+                ✨ 3 free analyses • No signup required
+              </p>
+            </div>
           </motion.div>
 
           {/* Testimonial */}
