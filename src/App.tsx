@@ -51,6 +51,16 @@ function App() {
     }
   };
 
+  const handleNavigateToAnalysis = () => {
+    if (!user) {
+      // Show auth modal for full analysis workflow
+      setAuthModalMode('signup');
+      setShowAuthModal(true);
+    } else {
+      setCurrentView('analysis');
+    }
+  };
+
   const renderCurrentView = () => {
     switch (currentView) {
       case 'landing':
@@ -79,6 +89,7 @@ function App() {
         return user ? (
           <AnalysisWorkflow onNavigate={setCurrentView} />
         ) : (
+          // Redirect to landing with auth prompt for full analysis
           <LandingPage 
             onLogin={handleLogin} 
             onNavigate={setCurrentView}
@@ -86,7 +97,8 @@ function App() {
           />
         );
       case 'figure-analyzer':
-        return <FigureAnalyzer onNavigate={setCurrentView} />;
+        // Allow figure analyzer without authentication
+        return <FigureAnalyzer onNavigate={setCurrentView} user={user} onLogin={handleLogin} />;
       case 'pricing':
         return (
           <PricingPage 

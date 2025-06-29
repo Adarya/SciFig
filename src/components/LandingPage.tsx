@@ -65,7 +65,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onNavigate, user }) 
                 onClick={handleDemo}
                 className="text-gray-700 hover:text-blue-600 transition-colors"
               >
-                Demo
+                Try Free Demo
               </button>
               {user ? (
                 <button 
@@ -127,7 +127,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onNavigate, user }) 
               className="bg-blue-600 text-white px-8 py-4 rounded-xl text-lg font-semibold hover:bg-blue-700 transition-all transform hover:scale-105 flex items-center justify-center gap-2"
             >
               <Play className="h-5 w-5" />
-              Try Demo
+              Try Free Demo
             </button>
             <button 
               onClick={handleGetStarted}
@@ -160,6 +160,28 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onNavigate, user }) 
               <h3 className="text-xl font-bold mb-2">Survival Curves</h3>
               <p className="text-gray-600">Complete methods sections for your papers</p>
             </div>
+          </motion.div>
+
+          {/* Free Demo CTA */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.5 }}
+            className="bg-gradient-to-r from-green-50 to-blue-50 rounded-2xl p-8 border border-green-200 mb-20"
+          >
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              🎯 Try Figure Analysis Free - No Signup Required!
+            </h2>
+            <p className="text-gray-700 mb-6 max-w-2xl mx-auto">
+              Upload any scientific figure and get instant AI-powered feedback on publication readiness, 
+              accessibility, and design improvements. Perfect for testing our capabilities!
+            </p>
+            <button 
+              onClick={handleDemo}
+              className="bg-green-600 text-white px-8 py-4 rounded-xl text-lg font-semibold hover:bg-green-700 transition-all transform hover:scale-105"
+            >
+              Analyze a Figure Now →
+            </button>
           </motion.div>
 
           {/* Testimonial */}

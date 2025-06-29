@@ -12,19 +12,34 @@ import {
   Target,
   Palette,
   Type,
-  BarChart3
+  BarChart3,
+  Crown,
+  Zap
 } from 'lucide-react';
+import { User } from '../utils/supabase';
 
 interface FigureAnalyzerProps {
   onNavigate: (view: string) => void;
+  user?: User | null;
+  onLogin?: (mode?: 'signin' | 'signup') => void;
 }
 
-const FigureAnalyzer: React.FC<FigureAnalyzerProps> = ({ onNavigate }) => {
+const FigureAnalyzer: React.FC<FigureAnalyzerProps> = ({ onNavigate, user, onLogin }) => {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisCount, setAnalysisCount] = useState(0);
+
+  // Free tier limits
+  const FREE_ANALYSIS_LIMIT = 3;
+  const isFreeTier = !user;
+  const hasReachedLimit = isFreeTier && analysisCount >= FREE_ANALYSIS_LIMIT;
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
+    if (hasReachedLimit) {
+      return; // Don't process if limit reached
+    }
+
     const file = acceptedFiles[0];
     if (file) {
       const reader = new FileReader();
@@ -34,18 +49,21 @@ const FigureAnalyzer: React.FC<FigureAnalyzerProps> = ({ onNavigate }) => {
       };
       reader.readAsDataURL(file);
     }
-  }, []);
+  }, [hasReachedLimit]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
       'image/*': ['.png', '.jpg', '.jpeg', '.svg', '.pdf']
     },
-    multiple: false
+    multiple: false,
+    disabled: hasReachedLimit
   });
 
   const analyzeImage = () => {
     setIsAnalyzing(true);
+    setAnalysisCount(prev => prev + 1);
+    
     // Simulate AI analysis
     setTimeout(() => {
       setAnalysis({
@@ -139,6 +157,12 @@ const FigureAnalyzer: React.FC<FigureAnalyzerProps> = ({ onNavigate }) => {
     }
   };
 
+  const handleUpgradeClick = () => {
+    if (onLogin) {
+      onLogin('signup');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -155,12 +179,73 @@ const FigureAnalyzer: React.FC<FigureAnalyzerProps> = ({ onNavigate }) => {
               </button>
               <div className="h-6 w-px bg-gray-300" />
               <h1 className="text-xl font-semibold text-gray-900">Figure Analyzer</h1>
+              {isFreeTier && (
+                <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">
+                  Free Trial
+                </span>
+              )}
             </div>
+            {isFreeTier && (
+              <button
+                onClick={handleUpgradeClick}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+              >
+                <Crown className="h-4 w-4" />
+                <span>Upgrade for Unlimited</span>
+              </button>
+            )}
           </div>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Free Tier Usage Banner */}
+        {isFreeTier && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`mb-6 p-4 rounded-lg border ${
+              hasReachedLimit 
+                ? 'bg-red-50 border-red-200' 
+                : 'bg-blue-50 border-blue-200'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                {hasReachedLimit ? (
+                  <AlertTriangle className="h-5 w-5 text-red-600" />
+                ) : (
+                  <Zap className="h-5 w-5 text-blue-600" />
+                )}
+                <div>
+                  <p className={`font-medium ${hasReachedLimit ? 'text-red-900' : 'text-blue-900'}`}>
+                    {hasReachedLimit 
+                      ? 'Free analysis limit reached' 
+                      : `Free Trial: ${analysisCount}/${FREE_ANALYSIS_LIMIT} analyses used`
+                    }
+                  </p>
+                  <p className={`text-sm ${hasReachedLimit ? 'text-red-700' : 'text-blue-700'}`}>
+                    {hasReachedLimit 
+                      ? 'Sign up for unlimited figure analysis and advanced features'
+                      : 'Sign up for unlimited analyses and advanced statistical tools'
+                    }
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleUpgradeClick}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  hasReachedLimit
+                    ? 'bg-red-600 text-white hover:bg-red-700'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                {hasReachedLimit ? 'Sign Up Now' : 'Upgrade'}
+              </button>
+            </div>
+          </motion.div>
+        )}
+
         {!uploadedImage ? (
           /* Upload Interface */
           <div className="max-w-4xl mx-auto">
@@ -169,34 +254,76 @@ const FigureAnalyzer: React.FC<FigureAnalyzerProps> = ({ onNavigate }) => {
               <p className="text-lg text-gray-600">
                 Upload your figure to get AI-powered feedback on clarity, accessibility, and publication readiness
               </p>
+              {isFreeTier && !hasReachedLimit && (
+                <p className="text-sm text-blue-600 mt-2">
+                  ✨ Try {FREE_ANALYSIS_LIMIT - analysisCount} more {FREE_ANALYSIS_LIMIT - analysisCount === 1 ? 'analysis' : 'analyses'} free!
+                </p>
+              )}
             </div>
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-2xl shadow-lg border-2 border-dashed border-gray-300 p-12 text-center hover:border-blue-400 transition-colors"
-              {...getRootProps()}
+              className={`bg-white rounded-2xl shadow-lg border-2 border-dashed p-12 text-center transition-colors ${
+                hasReachedLimit 
+                  ? 'border-gray-300 bg-gray-50 cursor-not-allowed' 
+                  : isDragActive 
+                  ? 'border-blue-400 bg-blue-50' 
+                  : 'border-gray-300 hover:border-blue-400'
+              }`}
+              {...(hasReachedLimit ? {} : getRootProps())}
             >
-              <input {...getInputProps()} />
+              {!hasReachedLimit && <input {...getInputProps()} />}
               
               <div className="space-y-6">
-                <div className="mx-auto w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center">
-                  <Upload className={`h-12 w-12 ${isDragActive ? 'text-blue-600 animate-bounce' : 'text-blue-500'}`} />
+                <div className={`mx-auto w-24 h-24 rounded-full flex items-center justify-center ${
+                  hasReachedLimit ? 'bg-gray-100' : 'bg-blue-50'
+                }`}>
+                  {hasReachedLimit ? (
+                    <AlertTriangle className="h-12 w-12 text-gray-400" />
+                  ) : (
+                    <Upload className={`h-12 w-12 ${isDragActive ? 'text-blue-600 animate-bounce' : 'text-blue-500'}`} />
+                  )}
                 </div>
                 
                 <div>
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    {isDragActive ? 'Drop your figure here' : 'Upload your scientific figure'}
+                    {hasReachedLimit 
+                      ? 'Free trial limit reached' 
+                      : isDragActive 
+                      ? 'Drop your figure here' 
+                      : 'Upload your scientific figure'
+                    }
                   </h3>
-                  <p className="text-gray-600 mb-4">or click to browse</p>
-                  <p className="text-sm text-gray-500">
-                    Supports PNG, JPG, SVG, and PDF files up to 10MB
-                  </p>
+                  {!hasReachedLimit && (
+                    <>
+                      <p className="text-gray-600 mb-4">or click to browse</p>
+                      <p className="text-sm text-gray-500">
+                        Supports PNG, JPG, SVG, and PDF files up to 10MB
+                      </p>
+                    </>
+                  )}
+                  {hasReachedLimit && (
+                    <p className="text-gray-600 mb-4">
+                      Sign up to continue analyzing figures and unlock advanced features
+                    </p>
+                  )}
                 </div>
 
-                <button className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors">
-                  Choose Figure
-                </button>
+                {!hasReachedLimit && (
+                  <button className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors">
+                    Choose Figure
+                  </button>
+                )}
+                
+                {hasReachedLimit && (
+                  <button 
+                    onClick={handleUpgradeClick}
+                    className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                  >
+                    Sign Up for Unlimited Access
+                  </button>
+                )}
               </div>
             </motion.div>
 
@@ -265,9 +392,14 @@ const FigureAnalyzer: React.FC<FigureAnalyzerProps> = ({ onNavigate }) => {
                     setUploadedImage(null);
                     setAnalysis(null);
                   }}
-                  className="w-full mt-4 bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 transition-colors"
+                  disabled={hasReachedLimit}
+                  className={`w-full mt-4 py-2 rounded-lg transition-colors ${
+                    hasReachedLimit 
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
                 >
-                  Upload Different Figure
+                  {hasReachedLimit ? 'Upgrade to Upload More' : 'Upload Different Figure'}
                 </button>
               </motion.div>
             </div>
@@ -402,6 +534,38 @@ const FigureAnalyzer: React.FC<FigureAnalyzerProps> = ({ onNavigate }) => {
                       ))}
                     </div>
                   </motion.div>
+
+                  {/* Upgrade Prompt for Free Users */}
+                  {isFreeTier && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3 }}
+                      className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200 p-6"
+                    >
+                      <div className="flex items-center space-x-3 mb-4">
+                        <Crown className="h-6 w-6 text-blue-600" />
+                        <h3 className="text-lg font-semibold text-gray-900">Unlock Full Analysis Power</h3>
+                      </div>
+                      <p className="text-gray-700 mb-4">
+                        Get unlimited figure analysis, advanced statistical tools, and publication-ready outputs.
+                      </p>
+                      <div className="flex items-center space-x-4">
+                        <button 
+                          onClick={handleUpgradeClick}
+                          className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                        >
+                          Start Free Trial
+                        </button>
+                        <button 
+                          onClick={() => onNavigate('pricing')}
+                          className="text-blue-600 hover:text-blue-700 font-medium"
+                        >
+                          View Pricing →
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
                 </>
               )}
             </div>
