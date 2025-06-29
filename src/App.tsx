@@ -6,15 +6,24 @@ import AnalysisWorkflow from './components/AnalysisWorkflow';
 import FigureAnalyzer from './components/FigureAnalyzer';
 import PricingPage from './components/PricingPage';
 import AuthModal from './components/AuthModal';
+import AdminPage from './components/AdminPage';
 import { useAuth } from './hooks/useAuth';
 
-type AppState = 'landing' | 'dashboard' | 'analysis' | 'figure-analyzer' | 'pricing';
+type AppState = 'landing' | 'dashboard' | 'analysis' | 'figure-analyzer' | 'pricing' | 'admin';
 
 function App() {
   const [currentView, setCurrentView] = useState<AppState>('landing');
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>('signin');
   const { user, loading, signOut } = useAuth();
+
+  // Check for admin access via URL parameter
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('admin') === 'true') {
+      setCurrentView('admin');
+    }
+  }, []);
 
   // Redirect to dashboard if user is logged in and on landing page
   useEffect(() => {
@@ -106,6 +115,9 @@ function App() {
             onSelectPlan={handleSelectPlan}
           />
         );
+      case 'admin':
+        // Admin page bypasses authentication
+        return <AdminPage onNavigate={setCurrentView} />;
       default:
         return (
           <LandingPage 
@@ -117,7 +129,7 @@ function App() {
     }
   };
 
-  if (loading) {
+  if (loading && currentView !== 'admin') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
         <div className="text-center">
@@ -143,11 +155,13 @@ function App() {
       </AnimatePresence>
 
       {/* Auth Modal */}
-      <AuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-        initialMode={authModalMode}
-      />
+      {currentView !== 'admin' && (
+        <AuthModal
+          isOpen={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+          initialMode={authModalMode}
+        />
+      )}
     </div>
   );
 }
