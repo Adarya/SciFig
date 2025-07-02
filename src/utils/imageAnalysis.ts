@@ -285,8 +285,16 @@ export class ImageAnalysisEngine {
   }
 
   private calculateDynamicRange(brightnessValues: number[]): number {
-    const min = Math.min(...brightnessValues);
-    const max = Math.max(...brightnessValues);
+    if (brightnessValues.length === 0) return 0;
+    
+    let min = brightnessValues[0];
+    let max = brightnessValues[0];
+    
+    for (let i = 1; i < brightnessValues.length; i++) {
+      if (brightnessValues[i] < min) min = brightnessValues[i];
+      if (brightnessValues[i] > max) max = brightnessValues[i];
+    }
+    
     return (max - min) / 255;
   }
 
