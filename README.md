@@ -3,386 +3,471 @@
 <div align="center">
   <img src="https://img.shields.io/badge/React-18.3.1-blue?style=for-the-badge&logo=react" alt="React" />
   <img src="https://img.shields.io/badge/TypeScript-5.5.3-blue?style=for-the-badge&logo=typescript" alt="TypeScript" />
-  <img src="https://img.shields.io/badge/Vite-5.4.2-purple?style=for-the-badge&logo=vite" alt="Vite" />
-  <img src="https://img.shields.io/badge/Tailwind-3.4.1-cyan?style=for-the-badge&logo=tailwindcss" alt="Tailwind CSS" />
-  <img src="https://img.shields.io/badge/Supabase-2.39.0-green?style=for-the-badge&logo=supabase" alt="Supabase" />
+  <img src="https://img.shields.io/badge/FastAPI-0.104.1-green?style=for-the-badge&logo=fastapi" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/PostgreSQL-15-blue?style=for-the-badge&logo=postgresql" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/Python-3.11-yellow?style=for-the-badge&logo=python" alt="Python" />
 </div>
 
 ## 🧬 Overview
 
-SciFig AI is a comprehensive platform that transforms how medical researchers create publication-ready analyses and figures. Using advanced AI and statistical engines, it makes statistical analysis as simple as describing what you want to show.
+SciFig AI is a full-stack platform that transforms how medical researchers create publication-ready analyses and figures. Using a combination of AI-powered recommendations and robust statistical engines, it makes statistical analysis accessible to researchers without extensive statistics backgrounds.
 
 ### ✨ Key Features
 
-- **🤖 AI-Powered Analysis Selection** - Smart recommendations based on your data structure
-- **📊 Publication-Ready Figures** - Journal-specific formatting with proper statistical annotations
-- **🔬 Comprehensive Statistical Tests** - T-tests, ANOVA, survival analysis, regression, and more
+- **🤖 AI-Powered Analysis Selection** - Smart recommendations based on your data structure  
+- **📊 Publication-Ready Figures** - Journal-specific formatting (Nature, Science, NEJM)
+- **🔬 Comprehensive Statistical Tests** - T-tests, ANOVA, Chi-square, survival analysis
 - **📝 Auto-Generated Methods** - Complete methods sections following publication guidelines
 - **🎨 Interactive Figure Editor** - Code editor and natural language modification interface
-- **👥 Collaboration Tools** - Share projects, track changes, and collaborate with co-authors
+- **👥 Real-time Collaboration** - Share projects and collaborate with co-authors
 - **🔒 HIPAA Compliant** - Secure data handling for medical research
+- **⚡ Backend Processing** - Fast, scalable statistical computing with Python/FastAPI
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Complete Setup)
 
 ### Prerequisites
 
-- Node.js 18+ 
-- npm or yarn
-- Git
+**System Requirements:**
+- **Node.js** 18+ with npm
+- **Python** 3.11+ 
+- **Conda** (recommended) or **Docker**
+- **Git**
 
-### Installation
+**Optional (for advanced setup):**
+- Docker & Docker Compose
+- PostgreSQL 15+
+- Redis 7+
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/your-username/scifig-ai.git
-   cd scifig-ai
-   ```
+### 🎯 Option 1: Full Development Setup (Recommended)
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+This setup gives you both frontend and backend running locally with persistent database.
 
-3. **Set up environment variables**
-   ```bash
-   cp .env.example .env
-   ```
-   
-   Edit `.env` with your Supabase credentials:
-   ```env
-   VITE_SUPABASE_URL=your_supabase_project_url
-   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-   ```
+#### 1. Clone and Setup Repository
+```bash
+# Clone the repository
+git clone https://github.com/your-username/scifig-ai.git
+cd scifig-ai
 
-4. **Start the development server**
-   ```bash
-   npm run dev
-   ```
+# Setup frontend dependencies
+npm install
 
-5. **Open your browser**
-   Navigate to `http://localhost:5173`
+# Setup backend
+cd backend
+```
+
+#### 2. Backend Setup with Conda (Recommended)
+```bash
+# Quick automated setup (Linux/Mac)
+./setup_env.sh
+
+# OR Windows
+setup_env.bat
+
+# OR Manual conda setup
+conda env create -f environment.yml
+conda activate scifig-ai
+
+# Verify installation
+python run_tests.py --quick
+```
+
+#### 3. Database Setup with Docker
+```bash
+# Start PostgreSQL and Redis (from backend directory)
+docker-compose up -d db redis
+
+# Run database migrations
+conda activate scifig-ai
+alembic upgrade head
+
+# Verify database connection
+python -c "from app.core.database import check_db_connection; import asyncio; print('DB Connected:', asyncio.run(check_db_connection()))"
+```
+
+#### 4. Start Both Services
+```bash
+# Terminal 1: Start Backend (from backend/ directory)
+conda activate scifig-ai
+uvicorn app.main:app --reload
+# Backend will be at: http://localhost:8000
+
+# Terminal 2: Start Frontend (from root directory)
+npm run dev
+# Frontend will be at: http://localhost:5173
+```
+
+#### 5. Verify Everything Works
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:8000/docs (Swagger docs)
+- **Backend Health**: http://localhost:8000/health
+- **Auth Check**: `curl http://localhost:8000/api/v1/auth/check`
+
+### 🐳 Option 2: Docker Setup (Production-like)
+
+```bash
+# Clone repository
+git clone https://github.com/your-username/scifig-ai.git
+cd scifig-ai
+
+# Setup environment (backend)
+cd backend
+cp .env.example .env
+# Edit .env with your settings
+
+# Start all services
+docker-compose up -d
+
+# Run migrations
+docker-compose run backend alembic upgrade head
+
+# Access services
+# Frontend: http://localhost:3000 (when Docker frontend added)
+# Backend: http://localhost:8000
+# PostgreSQL: localhost:5432
+# Redis: localhost:6379
+```
+
+### ⚡ Option 3: Frontend-Only (No Backend)
+
+If you just want to run the frontend with mock data:
+
+```bash
+git clone https://github.com/your-username/scifig-ai.git
+cd scifig-ai
+npm install
+npm run dev
+```
+
+Frontend will be at http://localhost:5173 with simulated backend responses.
 
 ## 🏗️ Project Structure
 
 ```
-scifig-ai/
-├── src/
+scifig-ai/                    # Root (Frontend)
+├── src/                      # React frontend source
 │   ├── components/           # React components
 │   │   ├── LandingPage.tsx   # Marketing landing page
-│   │   ├── Dashboard.tsx     # User dashboard
+│   │   ├── Dashboard.tsx     # User dashboard  
 │   │   ├── AnalysisWorkflow.tsx # Main analysis workflow
 │   │   ├── FigureAnalyzer.tsx   # Figure analysis tool
 │   │   ├── ResultsView.tsx      # Analysis results display
 │   │   ├── VisualizationEditor.tsx # Interactive figure editor
-│   │   ├── AuthModal.tsx        # Authentication modal
-│   │   ├── PricingPage.tsx      # Pricing and plans
-│   │   └── AdminPage.tsx        # Admin dashboard
+│   │   └── AuthModal.tsx        # Authentication modal
 │   ├── hooks/               # Custom React hooks
-│   │   └── useAuth.ts       # Authentication hook
-│   ├── utils/               # Utility functions
-│   │   ├── csvParser.ts     # Data parsing utilities
-│   │   ├── statisticalEngine.ts # Core statistical calculations
-│   │   ├── figureGenerator.ts   # Figure generation engine
-│   │   └── supabase.ts          # Supabase client and auth
-│   ├── docs/                # Documentation
-│   │   ├── SciFig_AI_Agent_Architecture.md
-│   │   └── SciFig_AI_Product_Design_Guide.md
-│   ├── App.tsx              # Main application component
-│   ├── main.tsx             # Application entry point
-│   └── index.css            # Global styles
-├── public/                  # Static assets
-├── package.json             # Dependencies and scripts
-├── vite.config.ts          # Vite configuration
-├── tailwind.config.js      # Tailwind CSS configuration
-└── README.md               # This file
+│   ├── utils/               # Frontend utilities
+│   └── docs/                # Documentation
+├── backend/                  # Python FastAPI backend
+│   ├── app/                  # FastAPI application
+│   │   ├── main.py           # FastAPI entry point
+│   │   ├── api/v1/           # API endpoints
+│   │   │   ├── analysis.py   # Statistical analysis endpoints
+│   │   │   ├── files.py      # File upload endpoints
+│   │   │   └── auth.py       # Authentication endpoints  
+│   │   ├── core/             # Core configuration
+│   │   ├── models/           # SQLAlchemy database models
+│   │   └── services/         # Business logic services
+│   ├── static/               # Generated figures storage
+│   ├── uploads/              # Temporary file storage
+│   ├── alembic/              # Database migrations
+│   ├── tests/                # Python tests
+│   ├── requirements.txt      # Python dependencies
+│   ├── environment.yml       # Conda environment
+│   └── docker-compose.yml    # Local services
+├── package.json              # Frontend dependencies
+└── README.md                 # This file
 ```
 
-## 🔧 Development
+## 🔧 Development Workflow
+
+### Daily Development
+
+```bash
+# Start your development environment
+cd scifig-ai
+
+# Terminal 1: Backend
+cd backend
+conda activate scifig-ai
+uvicorn app.main:app --reload
+
+# Terminal 2: Frontend  
+npm run dev
+
+# Terminal 3: Watch tests (optional)
+cd backend
+python run_tests.py --watch
+```
 
 ### Available Scripts
 
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run preview` - Preview production build
-- `npm run lint` - Run ESLint
-
-### Key Technologies
-
-- **Frontend**: React 18, TypeScript, Tailwind CSS
-- **Build Tool**: Vite
-- **Authentication**: Supabase Auth
-- **Database**: Supabase (PostgreSQL)
-- **Charts**: Plotly.js, React-Plotly.js
-- **Statistics**: Custom TypeScript statistical engine
-- **Code Editor**: Monaco Editor
-- **Animations**: Framer Motion
-- **Icons**: Lucide React
-
-## 📊 Features Deep Dive
-
-### 1. Statistical Analysis Engine
-
-The platform includes a comprehensive statistical engine supporting:
-
-- **Basic Tests**: T-tests, ANOVA, Chi-square, Fisher's exact
-- **Advanced Tests**: Survival analysis (Kaplan-Meier), regression analysis
-- **Assumption Checking**: Automatic validation of statistical assumptions
-- **Effect Sizes**: Cohen's d, eta-squared, Cramér's V, odds ratios
-- **Confidence Intervals**: 95% CIs for all appropriate statistics
-
-### 2. Figure Generation
-
-Publication-ready figures with:
-
-- **Journal Templates**: Nature, Science, NEJM, JAMA, PLOS ONE
-- **Export Formats**: PNG (300 DPI), SVG, PDF, EPS
-- **Statistical Annotations**: Significance stars, p-values, confidence intervals
-- **Customization**: Colors, fonts, sizes, layouts
-
-### 3. Interactive Editor
-
-Two editing modes for figure customization:
-
-- **Code Editor**: Direct manipulation of figure generation code with Monaco Editor
-- **Natural Language**: Chat interface for describing desired changes
-- **Live Preview**: Real-time updates as you make changes
-- **Version History**: Track and revert changes
-
-### 4. Authentication & Authorization
-
-- **Supabase Auth**: Email/password and Google OAuth
-- **Role-Based Access**: Free, Pro, Enterprise tiers
-- **Trial Management**: 14-day free trials with usage tracking
-- **Security**: HIPAA-compliant data handling
-
-## 🎯 Usage Examples
-
-### Basic Analysis Workflow
-
-1. **Upload Data**: Drag and drop CSV/Excel files
-2. **Configure Variables**: Select outcome and grouping variables
-3. **AI Recommendation**: Get intelligent test suggestions
-4. **Run Analysis**: Execute with assumption checking
-5. **Generate Figures**: Create publication-ready visualizations
-6. **Export Results**: Download figures and methods text
-
-### Figure Analysis (No Auth Required)
-
-1. **Upload Figure**: Drag and drop any scientific figure
-2. **AI Analysis**: Get feedback on publication readiness
-3. **Recommendations**: Receive specific improvement suggestions
-4. **Alternative Visualizations**: Explore better chart types
-
-### Admin Access
-
-Access the admin dashboard by adding `?admin=true` to any URL:
-```
-http://localhost:5173/?admin=true
+**Frontend (from root):**
+```bash
+npm run dev          # Start development server
+npm run build        # Build for production
+npm run preview      # Preview production build
+npm run lint         # Run ESLint
 ```
 
-Features:
-- User management and analytics
-- System health monitoring
-- Usage statistics and trends
-- Database administration tools
+**Backend (from backend/):**
+```bash
+# Development
+uvicorn app.main:app --reload    # Start development server
+python run_tests.py              # Run all tests
+python run_tests.py --quick      # Run quick tests only
+python run_tests.py --coverage   # Run with coverage
 
-## 🔐 Environment Setup
+# Database
+alembic upgrade head             # Apply migrations
+alembic revision --autogenerate -m "description"  # Create migration
 
-### Supabase Configuration
+# Production
+uvicorn app.main:app --host 0.0.0.0 --port 8000  # Production server
+```
 
-1. **Create a Supabase project** at [supabase.com](https://supabase.com)
+## 📊 API Usage Examples
 
-2. **Set up authentication**:
-   - Enable email/password authentication
-   - Configure Google OAuth (optional)
-   - Disable email confirmation for development
+### 1. Upload and Analyze Data
 
-3. **Create database tables**:
-   ```sql
-   -- Users profile table
-   CREATE TABLE profiles (
-     id UUID REFERENCES auth.users ON DELETE CASCADE,
-     name TEXT,
-     subscription_tier TEXT DEFAULT 'free',
-     subscription_status TEXT DEFAULT 'active',
-     trial_ends_at TIMESTAMPTZ,
-     created_at TIMESTAMPTZ DEFAULT NOW(),
-     PRIMARY KEY (id)
-   );
+```bash
+# Upload a CSV file
+curl -X POST "http://localhost:8000/api/v1/upload" \
+  -H "Content-Type: multipart/form-data" \
+  -F "file=@your_data.csv"
 
-   -- Enable RLS
-   ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+# Response: {"dataset_id": "abc123", "filename": "your_data.csv", ...}
 
-   -- Create policies
-   CREATE POLICY "Users can view own profile" ON profiles
-     FOR SELECT USING (auth.uid() = id);
+# Run statistical analysis  
+curl -X POST "http://localhost:8000/api/v1/run" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dataset_id": "abc123",
+    "outcome_variable": "blood_pressure",
+    "group_variable": "treatment_group"
+  }'
 
-   CREATE POLICY "Users can update own profile" ON profiles
-     FOR UPDATE USING (auth.uid() = id);
-   ```
+# Response: Analysis results with figures
+```
 
-4. **Add environment variables**:
-   ```env
-   VITE_SUPABASE_URL=https://your-project.supabase.co
-   VITE_SUPABASE_ANON_KEY=your-anon-key
-   ```
+### 2. Authentication Endpoints
 
-## 🚀 Deployment
+```bash
+# Check authentication status
+curl http://localhost:8000/api/v1/auth/check
 
-### Netlify (Recommended)
+# Login (development mode)
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "test@example.com", "password": "test123"}'
 
-1. **Build the project**:
-   ```bash
-   npm run build
-   ```
+# Get user profile (requires auth)
+curl http://localhost:8000/api/v1/auth/me \
+  -H "Authorization: Bearer your_token"
+```
 
-2. **Deploy to Netlify**:
-   - Connect your GitHub repository
-   - Set build command: `npm run build`
-   - Set publish directory: `dist`
-   - Add environment variables in Netlify dashboard
+### 3. View Generated Figures
 
-### Vercel
+After running an analysis, figures are available at:
+- `http://localhost:8000/static/figures/{analysis_id}_figure.png`
 
-1. **Install Vercel CLI**:
-   ```bash
-   npm i -g vercel
-   ```
+## 🔐 Environment Configuration
 
-2. **Deploy**:
-   ```bash
-   vercel --prod
-   ```
+### Backend Environment (.env)
 
-### Docker
+Create `backend/.env`:
 
-```dockerfile
-FROM node:18-alpine
+```env
+# Database (for production - Docker uses defaults)
+DATABASE_URL=postgresql://scifig:password@localhost:5432/scifig_ai
 
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
+# Authentication (for Supabase integration)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_KEY=your_supabase_service_key
+SECRET_KEY=your_secret_key_for_jwt
 
-COPY . .
-RUN npm run build
+# Optional
+REDIS_URL=redis://localhost:6379
+OPENAI_API_KEY=sk-your_openai_key
+ALLOWED_HOSTS=["http://localhost:5173", "http://localhost:3000"]
+```
 
-EXPOSE 3000
-CMD ["npm", "run", "preview"]
+### Frontend Environment
+
+Create `.env` (root directory):
+
+```env
+# Supabase (if using real auth)
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# Backend API (for production)
+VITE_API_BASE_URL=http://localhost:8000
 ```
 
 ## 🧪 Testing
 
-### Running Tests
+### Backend Tests
+
+```bash
+cd backend
+conda activate scifig-ai
+
+# Run all tests
+python run_tests.py
+
+# Quick tests only (skip slow integration tests)
+python run_tests.py --quick
+
+# With coverage report
+python run_tests.py --coverage
+
+# Specific test files
+python run_tests.py tests/test_statistical_engine.py
+
+# Verbose output
+python run_tests.py --verbose
+```
+
+### Frontend Tests
 
 ```bash
 # Unit tests
 npm run test
 
-# E2E tests
+# E2E tests (when implemented)
 npm run test:e2e
-
-# Coverage report
-npm run test:coverage
 ```
 
-### Test Structure
+## 📈 Features Currently Implemented
 
-- **Unit Tests**: Component and utility function tests
-- **Integration Tests**: API and database interaction tests
-- **E2E Tests**: Full user workflow tests
+### ✅ Backend (Python/FastAPI)
+- **Statistical Engine**: T-tests, Chi-square, assumption checking
+- **File Processing**: CSV/Excel upload with smart parsing
+- **Figure Generation**: Publication-ready plots (Nature/Science styles)
+- **Database**: PostgreSQL with SQLAlchemy ORM and Alembic migrations
+- **Authentication**: Supabase integration with JWT tokens
+- **API**: RESTful endpoints with OpenAPI documentation
 
-## 🤝 Contributing
+### ✅ Frontend (React/TypeScript)
+- **Analysis Workflow**: Step-by-step guided analysis
+- **Interactive Editor**: Monaco code editor + natural language interface
+- **Figure Display**: Real-time figure rendering and customization
+- **Authentication**: Supabase Auth with Google OAuth
+- **Responsive Design**: Mobile-friendly with Tailwind CSS
 
-### Development Workflow
+## 🚧 Development Roadmap
 
-1. **Fork the repository**
-2. **Create a feature branch**:
-   ```bash
-   git checkout -b feature/amazing-feature
-   ```
-3. **Make your changes**
-4. **Run tests**:
-   ```bash
-   npm run test
-   npm run lint
-   ```
-5. **Commit your changes**:
-   ```bash
-   git commit -m 'Add amazing feature'
-   ```
-6. **Push to the branch**:
-   ```bash
-   git push origin feature/amazing-feature
-   ```
-7. **Open a Pull Request**
+### Phase 3: Frontend-Backend Integration (Current)
+- [ ] Replace frontend statistical engine with backend API calls
+- [ ] Real-time progress updates for long-running analyses
+- [ ] File upload integration with backend processing
+- [ ] User session management across frontend/backend
 
-### Code Style
-
-- **TypeScript**: Strict mode enabled
-- **ESLint**: Configured with React and TypeScript rules
-- **Prettier**: Automatic code formatting
-- **Conventional Commits**: Use conventional commit messages
-
-### Architecture Guidelines
-
-- **Component Structure**: One component per file, clear separation of concerns
-- **State Management**: React hooks for local state, Supabase for global state
-- **Error Handling**: Comprehensive error boundaries and user feedback
-- **Performance**: Lazy loading, code splitting, optimized re-renders
-
-## 📈 Roadmap
-
-### Phase 1: Core Platform (✅ Complete)
-- [x] Basic statistical tests (t-test, ANOVA, chi-square)
-- [x] Figure generation with journal templates
-- [x] User authentication and subscription management
-- [x] Interactive figure editor
-
-### Phase 2: Advanced Features (🚧 In Progress)
-- [ ] Advanced statistical tests (mixed models, meta-analysis)
-- [ ] Collaboration features (real-time editing, comments)
-- [ ] API access for programmatic usage
-- [ ] Mobile app development
-
-### Phase 3: Enterprise Features (📋 Planned)
-- [ ] SSO integration (SAML, LDAP)
-- [ ] Advanced security controls
-- [ ] Custom deployment options
-- [ ] Advanced analytics dashboard
-
-### Phase 4: AI Enhancement (🔮 Future)
-- [ ] Natural language query interface
-- [ ] Automated insight generation
-- [ ] Predictive analytics
-- [ ] Integration with lab instruments
+### Phase 4: Advanced Features
+- [ ] Real-time collaboration with WebSockets
+- [ ] Advanced statistical tests (ANOVA, regression, survival analysis)
+- [ ] Batch analysis processing
+- [ ] API rate limiting and monitoring
 
 ## 🐛 Troubleshooting
 
 ### Common Issues
 
-1. **Build Errors with Plotly**:
-   ```bash
-   # Install buffer polyfill
-   npm install buffer
-   ```
+**1. Backend won't start:**
+```bash
+# Check conda environment
+conda activate scifig-ai
+python --version  # Should be 3.11+
 
-2. **Supabase Connection Issues**:
-   - Verify environment variables are set correctly
-   - Check Supabase project URL and API keys
-   - Ensure RLS policies are configured
+# Check database connection
+docker-compose up -d db
+python -c "from app.core.database import check_db_connection; import asyncio; print(asyncio.run(check_db_connection()))"
 
-3. **Monaco Editor Loading Issues**:
-   ```bash
-   # Clear node_modules and reinstall
-   rm -rf node_modules package-lock.json
-   npm install
-   ```
+# Check dependencies
+pip install -r requirements.txt
+```
 
-### Performance Optimization
+**2. Frontend can't connect to backend:**
+```bash
+# Verify backend is running
+curl http://localhost:8000/health
 
-- **Code Splitting**: Use React.lazy() for large components
-- **Image Optimization**: Compress images and use WebP format
-- **Bundle Analysis**: Use `npm run build -- --analyze`
+# Check CORS settings in backend/.env
+ALLOWED_HOSTS=["http://localhost:5173"]
+```
+
+**3. Database migration errors:**
+```bash
+# Reset database (development only)
+docker-compose down -v
+docker-compose up -d db
+alembic upgrade head
+```
+
+**4. Import errors in Python:**
+```bash
+# Make sure you're in the backend directory
+cd backend
+python -c "import app.main"  # Should not error
+```
+
+### Performance Tips
+
+- **Development**: Use `uvicorn --reload` for backend hot reloading
+- **Testing**: Use `--quick` flag to skip slow tests during development
+- **Database**: Docker PostgreSQL is fine for development; use cloud for production
+- **Frontend**: Vite provides fast HMR for React development
+
+## 🚀 Deployment
+
+### Production Deployment
+
+**Backend (FastAPI):**
+```bash
+# Build and deploy
+cd backend
+pip install -r requirements.txt
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# With gunicorn for production
+gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker
+```
+
+**Frontend (React):**
+```bash
+# Build for production
+npm run build
+
+# Deploy to Netlify/Vercel/etc.
+# Upload dist/ directory
+```
+
+### Docker Production
+
+```dockerfile
+# Dockerfile example for backend
+FROM python:3.11-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+COPY . .
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+## 🤝 Contributing
+
+1. **Fork the repository**
+2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
+3. **Setup development environment** following the Quick Start guide
+4. **Make your changes** with proper tests
+5. **Run tests**: `python run_tests.py` (backend) and `npm test` (frontend)
+6. **Submit a pull request**
+
+### Development Guidelines
+- **Backend**: Follow FastAPI conventions, add tests for new endpoints
+- **Frontend**: Use TypeScript, follow React best practices
+- **Database**: Use Alembic migrations for schema changes
+- **Tests**: Maintain >80% code coverage
 
 ## 📄 License
 
@@ -390,24 +475,21 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- **Statistical Methods**: Based on established statistical practices and R implementations
-- **Design Inspiration**: Modern scientific publishing platforms and data analysis tools
-- **Open Source Libraries**: Built on the shoulders of amazing open source projects
+- **FastAPI**: High-performance API framework
+- **React + Vite**: Modern frontend development
+- **SciPy/NumPy**: Statistical computing foundation
+- **Supabase**: Authentication and database services
+- **Plotly**: Interactive scientific visualization
 
 ## 📞 Support
 
-- **Documentation**: [docs.scifig.ai](https://docs.scifig.ai)
-- **Community**: [Discord Server](https://discord.gg/scifig-ai)
-- **Email**: support@scifig.ai
+- **Documentation**: Coming soon
 - **Issues**: [GitHub Issues](https://github.com/your-username/scifig-ai/issues)
+- **Email**: support@scifig.ai
 
 ---
 
 <div align="center">
   <p>Made with ❤️ for the scientific research community</p>
-  <p>
-    <a href="https://scifig.ai">Website</a> •
-    <a href="https://docs.scifig.ai">Documentation</a> •
-    <a href="https://twitter.com/scifig_ai">Twitter</a>
-  </p>
+  <p><strong>Full-stack platform for modern statistical analysis</strong></p>
 </div>

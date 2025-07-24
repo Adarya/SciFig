@@ -1,0 +1,73 @@
+name: scifig-ai
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  # Python version
+  - python=3.11
+
+  # Core web framework
+  - fastapi
+  - uvicorn
+  - pydantic
+  - pydantic-settings
+
+  # Scientific computing stack
+  - numpy
+  - pandas
+  - scipy
+  - matplotlib
+  - seaborn
+  - statsmodels
+
+  # Database and storage
+  - sqlalchemy
+  - alembic
+  - psycopg2
+  - asyncpg
+  - redis-py
+
+  # File processing
+  - openpyxl
+  - libmagic
+
+  # Authentication and security
+  - python-jose
+  - passlib
+  - cryptography
+  - bcrypt
+
+  # HTTP and async
+  - httpx
+  - python-multipart
+  - python-dotenv
+
+  # Testing dependencies
+  - pytest
+  - pytest-asyncio
+  - pytest-cov
+  - pytest-mock
+
+  # Development tools
+  - black
+  - flake8
+  - mypy
+  - pre-commit
+
+  # Additional utilities
+  - click
+  - tqdm
+  - psutil
+
+  # Jupyter for development/debugging
+  - jupyter
+  - ipykernel
+
+  # pip dependencies (not available in conda)
+  - pip
+  - pip:
+    - python-jose[cryptography]
+    - passlib[bcrypt]
+    - uvicorn[standard]
+    - python-magic
+    - supabase 
