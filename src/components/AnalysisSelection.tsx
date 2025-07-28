@@ -14,6 +14,7 @@ import {
   Users
 } from 'lucide-react';
 import { ParsedData } from '../utils/csvParser';
+import { GeminiAnalysisAI } from '../utils/geminiAI';
 
 interface AnalysisSelectionProps {
   data: ParsedData;
@@ -23,6 +24,10 @@ interface AnalysisSelectionProps {
   eventVariable?: string;
   onAnalysisSelected: (config: any) => void;
   onBack: () => void;
+  disabled?: boolean;
+  user?: any;
+  onLogin?: (mode?: 'signin' | 'signup') => void;
+  onNavigate?: (view: string) => void;
 }
 
 const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({ 
@@ -32,15 +37,21 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
   timeVariable,
   eventVariable,
   onAnalysisSelected, 
-  onBack 
+  onBack,
+  disabled,
+  user,
+  onLogin,
+  onNavigate
 }) => {
   const [selectedAnalysis, setSelectedAnalysis] = useState('');
   const [naturalLanguageQuery, setNaturalLanguageQuery] = useState('');
+  const [isAIProcessing, setIsAIProcessing] = useState(false);
+  const [aiRecommendation, setAiRecommendation] = useState<string | null>(null);
 
   // Determine data types and characteristics
-  const getColumnType = (columnName: string): string => {
+  const getColumnType = (columnName: string): 'categorical' | 'continuous' => {
     const sampleValues = data.preview.map(row => row[columnName]).filter(val => val != null);
-    if (sampleValues.length === 0) return 'unknown';
+    if (sampleValues.length === 0) return 'categorical';
     
     const isNumeric = sampleValues.every(val => !isNaN(Number(val)));
     if (isNumeric) {
@@ -159,6 +170,18 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
       }
     }
 
+    // Always include Kaplan-Meier as an option if not already in recommended
+    const hasKaplanMeier = recommendedAnalyses.some(a => a.id === 'kaplan_meier');
+    if (!hasKaplanMeier) {
+      analyses.push({
+        id: 'kaplan_meier',
+        name: 'Kaplan-Meier Survival Analysis',
+        description: 'Time-to-event analysis with survival curves',
+        icon: Clock,
+        assumptions: ['Time and event variables required']
+      });
+    }
+
     return analyses;
   };
 
@@ -168,6 +191,32 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
   const handleRunAnalysis = () => {
     const selectedConfig = [...recommendedAnalyses, ...otherAnalyses].find(a => a.id === selectedAnalysis);
     
+    // For Kaplan-Meier analysis, redirect to dedicated page
+    if (selectedAnalysis === 'kaplan_meier' && onNavigate) {
+      // Store only the configuration (without large data) in sessionStorage
+      const analysisConfig = {
+        type: selectedAnalysis,
+        config: selectedConfig,
+        naturalLanguageQuery,
+        outcomeVariable,
+        groupVariable,
+        timeVariable,
+        eventVariable,
+        outcomeType,
+        groupType
+      };
+      
+      // Store config without data
+      sessionStorage.setItem('kaplanMeierConfig', JSON.stringify(analysisConfig));
+      
+      // Store data separately with a temporary global variable (will be cleaned up on page reload)
+      (window as any).kaplanMeierData = data.data;
+      
+      onNavigate('kaplan-meier');
+      return;
+    }
+    
+    // For other analyses, continue with normal flow
     onAnalysisSelected({
       type: selectedAnalysis,
       config: selectedConfig,
@@ -182,21 +231,74 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
     });
   };
 
-  const handleNaturalLanguageSubmit = () => {
-    const query = naturalLanguageQuery.toLowerCase();
+  const handleNaturalLanguageSubmit = async () => {
+    if (!naturalLanguageQuery.trim()) {
+      alert('Please enter a research question first.');
+      return;
+    }
+
+    setIsAIProcessing(true);
+    setAiRecommendation(null);
     
-    if (query.includes('survival') || query.includes('time') || query.includes('kaplan')) {
-      setSelectedAnalysis('kaplan_meier');
-    } else if (query.includes('association') || query.includes('relationship')) {
-      if (outcomeType === 'categorical' && groupType === 'categorical') {
-        setSelectedAnalysis('chi_square');
+    try {
+      // Prepare data characteristics for AI
+      const dataCharacteristics = {
+        outcomeVariable,
+        groupVariable,
+        outcomeType,
+        groupType,
+        nGroups,
+        groups,
+        sampleSize: data.rows,
+        timeVariable,
+        eventVariable
+      };
+      
+      // Get AI recommendation from Gemini
+      const recommendation = await GeminiAnalysisAI.getAnalysisRecommendation(
+        naturalLanguageQuery,
+        dataCharacteristics
+      );
+      
+      // Apply the AI recommendation
+      setSelectedAnalysis(recommendation.recommendedTest);
+      setAiRecommendation(
+        `🤖 AI Recommendation (${Math.round(recommendation.confidence * 100)}% confidence): ${recommendation.reasoning}`
+      );
+      
+      console.log('AI Recommendation:', recommendation);
+      
+    } catch (error) {
+      console.error('AI recommendation failed:', error);
+      
+      // Fallback to rule-based system
+      const query = naturalLanguageQuery.toLowerCase();
+      
+      if (query.includes('multivariate') || query.includes('forest plot')) {
+        if (outcomeType === 'categorical') {
+          setSelectedAnalysis('fisher_exact');
+        } else {
+          setSelectedAnalysis(nGroups === 2 ? 'independent_ttest' : 'one_way_anova');
+        }
+      } else if (query.includes('survival') || query.includes('time') || query.includes('kaplan')) {
+        setSelectedAnalysis('kaplan_meier');
+      } else if (query.includes('correlation') || query.includes('association')) {
+        if (outcomeType === 'categorical' && groupType === 'categorical') {
+          setSelectedAnalysis('chi_square');
+        }
+      } else if (query.includes('compare') && nGroups === 2) {
+        setSelectedAnalysis('independent_ttest');
+      } else if (query.includes('compare') && nGroups > 2) {
+        setSelectedAnalysis('one_way_anova');
+      } else if (query.includes('non-parametric')) {
+        setSelectedAnalysis(nGroups === 2 ? 'mann_whitney_u' : 'kruskal_wallis');
+      } else if (recommendedAnalyses.length > 0) {
+        setSelectedAnalysis(recommendedAnalyses[0].id);
       }
-    } else if (query.includes('compare') && nGroups === 2) {
-      setSelectedAnalysis('independent_ttest');
-    } else if (query.includes('all groups') || (query.includes('compare') && nGroups > 2)) {
-      setSelectedAnalysis('one_way_anova');
-    } else if (query.includes('non-parametric') || query.includes('not normal')) {
-      setSelectedAnalysis(nGroups === 2 ? 'mann_whitney_u' : 'kruskal_wallis');
+      
+      setAiRecommendation('⚠️ AI service unavailable. Using fallback analysis selection.');
+    } finally {
+      setIsAIProcessing(false);
     }
   };
 
@@ -226,15 +328,58 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
               <textarea
                 value={naturalLanguageQuery}
                 onChange={(e) => setNaturalLanguageQuery(e.target.value)}
-                placeholder={`e.g., 'I want to compare ${outcomeVariable} between ${groups.join(' and ')}' or 'Test survival differences'`}
+                placeholder={`e.g., 'I want multivariate analysis with forest plot using ${outcomeVariable}' or 'Compare survival between groups' or 'Show correlation with effect sizes'`}
                 className="w-full h-24 border border-gray-300 rounded-lg px-4 py-3 resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <button 
                 onClick={handleNaturalLanguageSubmit}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                disabled={isAIProcessing || !naturalLanguageQuery.trim()}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
               >
-                Get AI Recommendation
+                {isAIProcessing ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>AI Analyzing...</span>
+                  </>
+                ) : (
+                  <>
+                    <Brain className="h-4 w-4" />
+                    <span>Get AI Recommendation</span>
+                  </>
+                )}
               </button>
+              
+              {/* AI Status Indicator */}
+              <div className="mt-2 p-2 rounded-lg border text-xs">
+                {GeminiAnalysisAI.isConfigured() ? (
+                  <div className="flex items-center space-x-2 text-green-700 bg-green-50 border-green-200">
+                    <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                    <span><strong>Gemini AI Active:</strong> Real AI recommendations enabled</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2 text-orange-700 bg-orange-50 border-orange-200">
+                    <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
+                    <span><strong>Fallback Mode:</strong> Using rule-based analysis (add API key for AI)</span>
+                  </div>
+                )}
+              </div>
+
+              {/* AI Recommendation Display */}
+              {aiRecommendation && (
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">{aiRecommendation}</p>
+                  {!GeminiAnalysisAI.isConfigured() && (
+                    <details className="mt-2">
+                      <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800">
+                        💡 Enable full AI capabilities
+                      </summary>
+                      <div className="mt-2 text-xs text-gray-600 whitespace-pre-line">
+                        {GeminiAnalysisAI.getSetupInstructions()}
+                      </div>
+                    </details>
+                  )}
+                </div>
+              )}
             </div>
           </motion.div>
 

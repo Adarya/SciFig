@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_KEY: str = "test-service-key"
     
     # Alternative Database (if not using Supabase)
-    DATABASE_URL: Optional[str] = None
+    DATABASE_URL: Optional[str] = "sqlite:///./scifig.db"
     
     # File Storage
     UPLOAD_DIR: str = "uploads"

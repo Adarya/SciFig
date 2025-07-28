@@ -36,7 +36,7 @@ hiredis==2.2.3
 httpx==0.25.2
 
 # CORS
-python-cors==1.0.1
+fastapi-cors==0.0.6
 
 # Development
 pytest==7.4.3

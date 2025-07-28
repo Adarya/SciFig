@@ -160,6 +160,7 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, o
             disabled={hasReachedLimit}
             user={user}
             onLogin={onLogin}
+            onNavigate={onNavigate}
           />
         ) : null;
       case 'results':

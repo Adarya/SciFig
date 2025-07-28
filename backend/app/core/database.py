@@ -8,16 +8,24 @@ import os
 from app.core.config import settings
 
 # Database URL from settings or environment
-DATABASE_URL = settings.DATABASE_URL or "postgresql://scifig:password@localhost:5432/scifig_ai"
+DATABASE_URL = settings.DATABASE_URL or "sqlite:///./scifig.db"
 
 # Create SQLAlchemy engine
-engine = create_engine(
-    DATABASE_URL,
-    # Connection pool settings
-    pool_pre_ping=True,
-    pool_recycle=300,
-    echo=False,  # Set to True for SQL logging in development
-)
+if "sqlite" in DATABASE_URL:
+    engine = create_engine(
+        DATABASE_URL,
+        poolclass=StaticPool,
+        connect_args={"check_same_thread": False},
+        echo=False,  # Set to True for SQL logging in development
+    )
+else:
+    engine = create_engine(
+        DATABASE_URL,
+        # Connection pool settings
+        pool_pre_ping=True,
+        pool_recycle=300,
+        echo=False,  # Set to True for SQL logging in development
+    )
 
 # Create SessionLocal class
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

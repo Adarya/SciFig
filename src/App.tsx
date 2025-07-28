@@ -7,9 +7,10 @@ import FigureAnalyzer from './components/FigureAnalyzer';
 import PricingPage from './components/PricingPage';
 import AuthModal from './components/AuthModal';
 import AdminPage from './components/AdminPage';
+import KaplanMeierAnalysis from './components/KaplanMeierAnalysis';
 import { useAuth } from './hooks/useAuth';
 
-type AppState = 'landing' | 'dashboard' | 'analysis' | 'figure-analyzer' | 'pricing' | 'admin';
+type AppState = 'landing' | 'dashboard' | 'analysis' | 'figure-analyzer' | 'pricing' | 'admin' | 'kaplan-meier';
 
 function App() {
   const [currentView, setCurrentView] = useState<AppState>('landing');
@@ -100,6 +101,12 @@ function App() {
       case 'admin':
         // Admin page bypasses authentication
         return <AdminPage onNavigate={setCurrentView} />;
+      case 'kaplan-meier':
+        // Kaplan-Meier analysis page - config will be loaded from sessionStorage
+        return <KaplanMeierAnalysis 
+          onBack={() => setCurrentView('analysis')} 
+          onNewAnalysis={() => setCurrentView('analysis')} 
+        />;
       default:
         return (
           <LandingPage 
