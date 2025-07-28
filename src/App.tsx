@@ -7,10 +7,10 @@ import FigureAnalyzer from './components/FigureAnalyzer';
 import PricingPage from './components/PricingPage';
 import AuthModal from './components/AuthModal';
 import AdminPage from './components/AdminPage';
-import KaplanMeierAnalysis from './components/KaplanMeierAnalysis';
+// Import the original auth hook for now until we fully migrate
 import { useAuth } from './hooks/useAuth';
 
-type AppState = 'landing' | 'dashboard' | 'analysis' | 'figure-analyzer' | 'pricing' | 'admin' | 'kaplan-meier';
+// Using the AppState type defined in src/types/app.d.ts
 
 function App() {
   const [currentView, setCurrentView] = useState<AppState>('landing');
@@ -101,12 +101,6 @@ function App() {
       case 'admin':
         // Admin page bypasses authentication
         return <AdminPage onNavigate={setCurrentView} />;
-      case 'kaplan-meier':
-        // Kaplan-Meier analysis page - config will be loaded from sessionStorage
-        return <KaplanMeierAnalysis 
-          onBack={() => setCurrentView('analysis')} 
-          onNewAnalysis={() => setCurrentView('analysis')} 
-        />;
       default:
         return (
           <LandingPage 

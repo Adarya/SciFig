@@ -17,7 +17,7 @@ import { User } from '../utils/supabase';
 
 interface DashboardProps {
   user: User;
-  onNavigate: (view: string) => void;
+  onNavigate: NavigateFunction;
   onLogout: () => void;
 }
 

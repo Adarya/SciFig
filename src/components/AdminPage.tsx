@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 
 interface AdminPageProps {
-  onNavigate: (view: string) => void;
+  onNavigate: NavigateFunction;
 }
 
 const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {

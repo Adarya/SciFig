@@ -17,7 +17,7 @@ import { User } from '../utils/supabase';
 
 interface LandingPageProps {
   onLogin: (mode?: 'signin' | 'signup') => void;
-  onNavigate: (view: string) => void;
+  onNavigate: NavigateFunction;
   user: User | null;
 }
 

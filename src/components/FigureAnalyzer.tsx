@@ -21,7 +21,7 @@ import { User } from '../utils/supabase';
 import ImageAnalysisModal from './ImageAnalysisModal';
 
 interface FigureAnalyzerProps {
-  onNavigate: (view: string) => void;
+  onNavigate: NavigateFunction;
   user?: User | null;
   onLogin?: (mode?: 'signin' | 'signup') => void;
 }

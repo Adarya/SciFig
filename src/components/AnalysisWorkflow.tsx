@@ -12,17 +12,20 @@ import {
   Share,
   Zap,
   Crown,
-  AlertTriangle
+  AlertTriangle,
+  Loader
 } from 'lucide-react';
 import FileUpload from './FileUpload';
 import DataPreview from './DataPreview';
 import AnalysisSelection from './AnalysisSelection';
 import ResultsView from './ResultsView';
 import { ParsedData } from '../utils/csvParser';
+import { Dataset } from '../services/apiClient';
 import { User } from '../utils/supabase';
+import AnalysisProgressIndicator from './AnalysisProgressIndicator';
 
 interface AnalysisWorkflowProps {
-  onNavigate: (view: string) => void;
+  onNavigate: NavigateFunction;
   user?: User | null;
   onLogin?: (mode?: 'signin' | 'signup') => void;
 }
@@ -32,6 +35,7 @@ type WorkflowStep = 'upload' | 'preview' | 'analysis' | 'results';
 const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, onLogin }) => {
   const [currentStep, setCurrentStep] = useState<WorkflowStep>('upload');
   const [uploadedData, setUploadedData] = useState<ParsedData | null>(null);
+  const [uploadedDataset, setUploadedDataset] = useState<Dataset | null>(null);
   const [outcomeVariable, setOutcomeVariable] = useState<string>('');
   const [groupVariable, setGroupVariable] = useState<string>('');
   const [timeVariable, setTimeVariable] = useState<string>('');
@@ -67,12 +71,13 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, o
     }
   };
 
-  const handleFileUploaded = (data: ParsedData) => {
+  const handleFileUploaded = (data: ParsedData, dataset?: Dataset) => {
     if (hasReachedLimit) {
       return; // Don't process if limit reached
     }
 
     setUploadedData(data);
+    setUploadedDataset(dataset || null);
     
     // Auto-detect variables
     const outcomeKeywords = ['outcome', 'score', 'result', 'response', 'efficacy', 'effect'];
@@ -112,14 +117,50 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, o
     handleNext();
   };
 
-  const handleAnalysisSelected = (config: any) => {
+  const [analysisInProgress, setAnalysisInProgress] = useState(false);
+  const [analysisProgressId, setAnalysisProgressId] = useState<string | null>(null);
+
+  const handleAnalysisSelected = async (config: any) => {
     if (hasReachedLimit) {
       return; // Don't process if limit reached
     }
 
-    setAnalysisConfig(config);
-    setAnalysisCount(prev => prev + 1);
-    handleNext();
+    try {
+      // If we have a dataset ID from the backend, use it for server-side analysis
+      if (uploadedDataset && user) {
+        // Add the dataset ID to the config
+        const configWithDataset = {
+          ...config,
+          dataset_id: uploadedDataset.id
+        };
+        
+        // Store the config for the UI
+        setAnalysisConfig(configWithDataset);
+        
+        // Set analysis in progress to show progress indicator
+        setAnalysisInProgress(true);
+        
+        // If this is a real backend analysis, we'll get an ID for progress tracking
+        if (configWithDataset.dataset_id) {
+          // In a real implementation, we'd get this from the API response
+          // For now, we'll use a mock ID
+          setAnalysisProgressId('analysis-123');
+        }
+      } else {
+        // Just use the client-side config
+        setAnalysisConfig(config);
+      }
+      
+      // Increment analysis count and proceed
+      setAnalysisCount(prev => prev + 1);
+      handleNext();
+    } catch (error) {
+      console.error("Error preparing analysis:", error);
+      // Continue with client-side analysis as fallback
+      setAnalysisConfig(config);
+      setAnalysisCount(prev => prev + 1);
+      handleNext();
+    }
   };
 
   const handleUpgradeClick = () => {
@@ -157,10 +198,6 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, o
             eventVariable={eventVariable}
             onAnalysisSelected={handleAnalysisSelected}
             onBack={handleBack}
-            disabled={hasReachedLimit}
-            user={user}
-            onLogin={onLogin}
-            onNavigate={onNavigate}
           />
         ) : null;
       case 'results':
@@ -171,14 +208,14 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, o
             onNewAnalysis={() => {
               setCurrentStep('upload');
               setUploadedData(null);
+              setUploadedDataset(null);
               setAnalysisConfig(null);
               setOutcomeVariable('');
               setGroupVariable('');
               setTimeVariable('');
               setEventVariable('');
             }}
-            user={user}
-            onLogin={onLogin}
+            dataset={uploadedDataset || undefined}
           />
         ) : null;
       default:
@@ -311,6 +348,16 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, o
 
       {/* Main Content */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Analysis Progress Indicator */}
+        {analysisInProgress && analysisProgressId && (
+          <div className="mb-6">
+            <AnalysisProgressIndicator 
+              analysisId={analysisProgressId}
+              onComplete={() => setAnalysisInProgress(false)}
+            />
+          </div>
+        )}
+        
         <AnimatePresence mode="wait">
           <motion.div
             key={currentStep}

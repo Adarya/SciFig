@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     
     # CORS
-    ALLOWED_HOSTS: List[str] = ["http://localhost:5173", "http://localhost:3000", "https://scifig.ai"]
+    ALLOWED_HOSTS: List[str] = ["http://localhost:5173", "http://localhost:3000", "http://localhost:5176", "https://scifig.ai"]
     
     # Database
     SUPABASE_URL: str = "https://test.supabase.co"

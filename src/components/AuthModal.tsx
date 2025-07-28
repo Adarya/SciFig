@@ -11,7 +11,9 @@ import {
   AlertCircle,
   CheckCircle
 } from 'lucide-react';
-import { useAuth } from '../hooks/useAuth';
+// Import both auth hooks for transition period
+import { useAuth as useSupabaseAuth } from '../hooks/useAuth';
+import { useAuth as useApiAuth } from '../providers/ApiAuthProvider';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -31,7 +33,32 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode = 's
   const [localError, setLocalError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const { signIn, signUp, signInWithGoogle, resetPassword, loading, error } = useAuth();
+  // Use both auth systems during transition
+  const supabaseAuth = useSupabaseAuth();
+  const apiAuth = useApiAuth();
+  
+  // Combine auth methods to update both systems
+  const signIn = async (email: string, password: string) => {
+    await supabaseAuth.signIn(email, password);
+    return apiAuth.signIn(email, password);
+  };
+  
+  const signUp = async (email: string, password: string, name?: string) => {
+    await supabaseAuth.signUp(email, password, name);
+    return apiAuth.signUp(email, password, name);
+  };
+  
+  const signInWithGoogle = async () => {
+    return supabaseAuth.signInWithGoogle(); // API auth will sync via session check
+  };
+  
+  const resetPassword = async (email: string) => {
+    return supabaseAuth.resetPassword(email); // API doesn't handle reset directly
+  };
+  
+  // Use loading and error states from both systems
+  const loading = supabaseAuth.loading || apiAuth.loading;
+  const error = supabaseAuth.error || apiAuth.error;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

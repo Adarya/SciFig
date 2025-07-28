@@ -14,6 +14,11 @@ class UserService:
     @staticmethod
     def create_user(db: Session, email: str, name: str = None, **kwargs) -> User:
         """Create a new user"""
+        # Convert string UUID to UUID object if provided
+        if 'id' in kwargs and isinstance(kwargs['id'], str):
+            import uuid as uuid_lib
+            kwargs['id'] = uuid_lib.UUID(kwargs['id'])
+        
         user = User(
             email=email,
             name=name,
@@ -77,11 +82,30 @@ class ProjectService:
         return db.query(Project).filter(Project.id == project_id).first()
     
     @staticmethod
-    def get_user_projects(db: Session, user_id: str, limit: int = 50) -> List[Project]:
-        """Get all projects for a user"""
-        return db.query(Project).filter(
-            Project.user_id == user_id
-        ).order_by(desc(Project.last_modified)).limit(limit).all()
+    def get_user_projects(db: Session, user_id: str, limit: int = 50, offset: int = 0, search: str = None) -> List[Project]:
+        """Get all projects for a user with pagination and search"""
+        query = db.query(Project).filter(Project.user_id == user_id)
+        
+        if search:
+            query = query.filter(
+                Project.name.ilike(f"%{search}%") | 
+                Project.description.ilike(f"%{search}%")
+            )
+        
+        return query.order_by(desc(Project.updated_at)).offset(offset).limit(limit).all()
+    
+    @staticmethod
+    def count_user_projects(db: Session, user_id: str, search: str = None) -> int:
+        """Count total projects for a user with optional search"""
+        query = db.query(Project).filter(Project.user_id == user_id)
+        
+        if search:
+            query = query.filter(
+                Project.name.ilike(f"%{search}%") | 
+                Project.description.ilike(f"%{search}%")
+            )
+        
+        return query.count()
     
     @staticmethod
     def update_project(db: Session, project_id: str, **kwargs) -> Optional[Project]:
@@ -90,7 +114,7 @@ class ProjectService:
         if project:
             for key, value in kwargs.items():
                 setattr(project, key, value)
-            project.last_modified = datetime.utcnow()
+            project.updated_at = datetime.utcnow()
             db.commit()
             db.refresh(project)
         return project

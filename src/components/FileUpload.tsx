@@ -1,12 +1,13 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion } from 'framer-motion';
-import { Upload, FileText, CheckCircle, Shield, AlertCircle, Crown, Zap } from 'lucide-react';
+import { Upload, FileText, CheckCircle, Shield, AlertCircle, Crown, Zap, Loader } from 'lucide-react';
 import { parseCSVFile, ParsedData } from '../utils/csvParser';
+import { apiClient, Dataset, handleApiError } from '../services/apiClient';
 import { User } from '../utils/supabase';
 
 interface FileUploadProps {
-  onFileUploaded: (data: ParsedData) => void;
+  onFileUploaded: (data: ParsedData, dataset?: Dataset) => void;
   disabled?: boolean;
   user?: User | null;
   onLogin?: (mode?: 'signin' | 'signup') => void;
@@ -15,6 +16,42 @@ interface FileUploadProps {
 const FileUpload: React.FC<FileUploadProps> = ({ onFileUploaded, disabled = false, user, onLogin }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<string>('');
+
+  const processFileWithBackend = async (file: File): Promise<{ parsedData: ParsedData; dataset: Dataset }> => {
+    setUploadProgress('Uploading file to server...');
+    
+    try {
+      // Upload file to backend
+      const dataset = await apiClient.files.upload(file);
+      
+      setUploadProgress('Processing file data...');
+      
+      // Get the processed data from backend
+      const dataResponse = await apiClient.files.getDatasetData(dataset.id, 100) as { data: any[]; total: number }; // Get first 100 rows for preview
+      
+      setUploadProgress('Finalizing...');
+      
+      // Convert backend response to ParsedData format for compatibility
+      const parsedData: ParsedData = {
+        data: dataResponse.data || [],
+        columns: dataset.columns,
+        filename: dataset.filename,
+        rows: dataset.rows,
+        preview: (dataResponse.data || []).slice(0, 5)
+      };
+
+      return { parsedData, dataset };
+    } catch (error) {
+      throw new Error(handleApiError(error));
+    }
+  };
+
+  const processFileLocally = async (file: File): Promise<{ parsedData: ParsedData }> => {
+    setUploadProgress('Processing file locally...');
+    const parsedData = await parseCSVFile(file);
+    return { parsedData };
+  };
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (disabled) return;
@@ -24,16 +61,35 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploaded, disabled = fals
 
     setIsProcessing(true);
     setError(null);
+    setUploadProgress('');
 
     try {
-      const parsedData = await parseCSVFile(file);
-      onFileUploaded(parsedData);
+      // Check if user is authenticated and backend is available
+      const useBackend = !!user;
+      
+      if (useBackend) {
+        try {
+          // Try backend processing first
+          const { parsedData, dataset } = await processFileWithBackend(file);
+          onFileUploaded(parsedData, dataset);
+        } catch (backendError) {
+          console.warn('Backend processing failed, falling back to local processing:', backendError);
+          // Fall back to local processing
+          const { parsedData } = await processFileLocally(file);
+          onFileUploaded(parsedData);
+        }
+      } else {
+        // Use local processing for unauthenticated users
+        const { parsedData } = await processFileLocally(file);
+        onFileUploaded(parsedData);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to process file');
     } finally {
       setIsProcessing(false);
+      setUploadProgress('');
     }
-  }, [onFileUploaded, disabled]);
+  }, [onFileUploaded, disabled, user]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -48,6 +104,9 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploaded, disabled = fals
 
   const generateSampleData = () => {
     if (disabled) return;
+
+    setIsProcessing(true);
+    setUploadProgress('Generating sample data...');
 
     // Generate realistic clinical trial data
     const treatments = ['Drug A', 'Drug B', 'Placebo'];
@@ -93,7 +152,11 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploaded, disabled = fals
       preview: sampleData.slice(0, 5)
     };
 
-    onFileUploaded(mockParsedData);
+    setTimeout(() => {
+      setIsProcessing(false);
+      setUploadProgress('');
+      onFileUploaded(mockParsedData);
+    }, 1000);
   };
 
   const handleUpgradeClick = () => {
@@ -112,6 +175,11 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploaded, disabled = fals
         {!user && (
           <p className="text-sm text-blue-600 mt-2">
             ✨ Try 2 free analyses without signing up!
+          </p>
+        )}
+        {user && (
+          <p className="text-sm text-green-600 mt-2">
+            ✅ Authenticated - using secure server processing
           </p>
         )}
       </div>
@@ -139,7 +207,16 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploaded, disabled = fals
             ? 'border-gray-300 bg-gray-50' 
             : 'border-gray-300 hover:border-blue-400'
         }`}
-        {...(disabled ? {} : getRootProps())}
+        style={!disabled ? getRootProps().style : {}}
+        onClick={!disabled ? getRootProps().onClick : undefined}
+        onKeyDown={!disabled ? getRootProps().onKeyDown : undefined}
+        onFocus={!disabled ? getRootProps().onFocus : undefined}
+        onBlur={!disabled ? getRootProps().onBlur : undefined}
+        onDrop={!disabled ? getRootProps().onDrop : undefined}
+        onDragEnter={!disabled ? getRootProps().onDragEnter : undefined}
+        onDragLeave={!disabled ? getRootProps().onDragLeave : undefined}
+        onDragOver={!disabled ? getRootProps().onDragOver : undefined}
+        tabIndex={!disabled ? getRootProps().tabIndex : undefined}
       >
         {!disabled && <input {...getInputProps()} />}
         
@@ -148,7 +225,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploaded, disabled = fals
             disabled ? 'bg-gray-100' : 'bg-blue-50'
           }`}>
             {isProcessing ? (
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              <Loader className="h-12 w-12 text-blue-600 animate-spin" />
             ) : disabled ? (
               <AlertCircle className="h-12 w-12 text-gray-400" />
             ) : (
@@ -159,7 +236,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploaded, disabled = fals
           <div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
               {isProcessing 
-                ? 'Processing your file...' 
+                ? uploadProgress || 'Processing your file...' 
                 : disabled
                 ? 'Free trial limit reached'
                 : isDragActive 
@@ -237,9 +314,14 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploaded, disabled = fals
           className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 text-center"
         >
           <Shield className="h-8 w-8 text-purple-600 mx-auto mb-3" />
-          <h4 className="font-semibold text-gray-900 mb-2">Secure Processing</h4>
+          <h4 className="font-semibold text-gray-900 mb-2">
+            {user ? 'Secure Server Processing' : 'Local Processing'}
+          </h4>
           <p className="text-sm text-gray-600">
-            All data processing happens locally in your browser
+            {user 
+              ? 'Data processed securely on our servers with persistent storage'
+              : 'All data processing happens locally in your browser'
+            }
           </p>
         </motion.div>
       </div>

@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 import os
 from contextlib import asynccontextmanager
 
-from app.api.v1 import analysis, files, auth
+from app.api.v1 import analysis, files, auth, projects
 from app.core.config import settings
 from app.core.database import init_db, check_db_connection, db_health_check
 from app.services.database_service import create_sample_data
@@ -71,6 +71,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])  # Include auth first with prefix
 app.include_router(analysis.router, prefix="/api/v1", tags=["analysis"])
 app.include_router(files.router, prefix="/api/v1", tags=["files"])
+app.include_router(projects.router, prefix="/api/v1/projects", tags=["projects"])
 
 # Static files for serving generated figures
 app.mount("/static", StaticFiles(directory="static"), name="static")

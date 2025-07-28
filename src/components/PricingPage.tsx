@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 
 interface PricingPageProps {
-  onNavigate: (view: string) => void;
+  onNavigate: NavigateFunction;
   onSelectPlan?: (plan: string) => void;
 }
 

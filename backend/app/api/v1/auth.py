@@ -83,7 +83,7 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
                 token_type="bearer", 
                 expires_in=3600,
                 user={
-                    "user_id": "dev-user-123",
+                    "user_id": "00000000-0000-4000-8000-000000000001",
                     "email": request.email,
                     "name": "Development User",
                     "subscription_tier": "pro",
@@ -264,7 +264,7 @@ async def get_mock_user_for_development():
         "access_token": "dev_mock_token_12345",
         "token_type": "bearer",
         "user": {
-            "user_id": "dev-user-123",
+                                "user_id": "00000000-0000-4000-8000-000000000001",
             "email": "dev@example.com",
             "name": "Development User",
             "subscription_tier": "pro",
