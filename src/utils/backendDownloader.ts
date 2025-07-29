@@ -17,7 +17,7 @@ export interface DownloadRequest {
 }
 
 export class BackendDownloader {
-  private static readonly BACKEND_URL = 'http://localhost:8000';
+  private static readonly BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
   static async downloadPublicationFigure(request: DownloadRequest): Promise<void> {
     try {
@@ -67,7 +67,7 @@ export class BackendDownloader {
       
     } catch (error) {
       console.error('❌ Backend download failed:', error);
-      throw new Error(`Failed to generate publication figure: ${error.message}`);
+      throw new Error(`Failed to generate publication figure: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

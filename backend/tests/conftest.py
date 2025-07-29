@@ -12,7 +12,7 @@ from pathlib import Path
 import tempfile
 import os
 
-from app.main import app
+from scifig_api_server import app
 from app.services.statistical_engine import EngineOrchestrator
 from app.services.figure_generator import FigureGenerator
 from app.services.file_processor import FileProcessor
