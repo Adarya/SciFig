@@ -156,10 +156,16 @@ class PublicationVizEngine:
         Validate survival data and return summary statistics
         """
         total_obs = len(time_data)
-        # Convert to numeric to avoid division errors
-        events = float(pd.to_numeric(event_data, errors='coerce').sum())
-        censored = total_obs - events
-        event_rate = events / total_obs if total_obs > 0 else 0
+        # Ensure proper numeric conversion to avoid division errors
+        try:
+            events = float(np.sum(event_data.astype(np.int32)))
+            censored = total_obs - events
+            event_rate = events / total_obs if total_obs > 0 else 0.0
+        except Exception as e:
+            print(f"DEBUG: Error in survival data validation: {e}")
+            events = 0.0
+            censored = total_obs
+            event_rate = 0.0
         
         validation_result = {
             'total_observations': total_obs,
@@ -304,7 +310,7 @@ class PublicationVizEngine:
         fig, (ax_main, ax_table) = plt.subplots(2, 1, figsize=(fig_width, fig_height), 
                                                height_ratios=[3, 1], dpi=self.style_config['dpi'])
         
-        # Prepare survival data with proper type conversion and alignment
+        # Prepare survival data with robust type conversion and validation
         # Ensure we have the same indices for time and event data
         clean_data = data[[time_var, event_var, group_var]].copy() if group_var else data[[time_var, event_var]].copy()
         clean_data = clean_data.dropna()
@@ -312,26 +318,58 @@ class PublicationVizEngine:
         # Reset index to ensure proper alignment
         clean_data = clean_data.reset_index(drop=True)
         
-        # Convert time variable to numeric
-        time_data = pd.to_numeric(clean_data[time_var], errors='coerce')
+        print(f"DEBUG: Initial data shape: {clean_data.shape}")
+        print(f"DEBUG: Time variable '{time_var}' sample values: {clean_data[time_var].head()}")
+        print(f"DEBUG: Event variable '{event_var}' sample values: {clean_data[event_var].head()}")
+        
+        # Convert time variable to numeric with robust error handling
+        try:
+            time_data = pd.to_numeric(clean_data[time_var], errors='coerce')
+            print(f"DEBUG: Time conversion successful, dtype: {time_data.dtype}")
+        except Exception as e:
+            raise ValueError(f"Failed to convert time variable '{time_var}' to numeric: {str(e)}")
         
         # Intelligently convert event variable
         print(f"DEBUG: Converting event variable '{event_var}'...")
-        event_data = self._detect_and_convert_event_variable(clean_data[event_var], event_var)
+        try:
+            event_data = self._detect_and_convert_event_variable(clean_data[event_var], event_var)
+            print(f"DEBUG: Event conversion successful, dtype: {event_data.dtype}")
+        except Exception as e:
+            raise ValueError(f"Failed to convert event variable '{event_var}': {str(e)}")
         
-        # Ensure both are proper numeric types for lifelines
-        time_data = time_data.astype(float)
-        event_data = event_data.astype(int)
+        # Ensure both are proper numeric types for lifelines with explicit validation
+        try:
+            # Force to float64 for time data (lifelines prefers this)
+            time_data = time_data.astype(np.float64)
+            # Force to int32 for event data (sufficient for 0/1 values)
+            event_data = event_data.astype(np.int32)
+            print(f"DEBUG: Final types - time: {time_data.dtype}, event: {event_data.dtype}")
+        except Exception as e:
+            raise ValueError(f"Failed to convert data to required types: {str(e)}")
         
         print(f"DEBUG: After conversion - time_data dtype: {time_data.dtype}, event_data dtype: {event_data.dtype}")
         print(f"DEBUG: Event data unique values: {event_data.unique()}")
         print(f"DEBUG: Event data value counts: {event_data.value_counts()}")
         
-        # Remove rows where time_data is NaN after conversion
-        valid_mask = ~time_data.isna()
+        # Handle NaN values more robustly
+        print(f"DEBUG: Before NaN removal - time_data has {time_data.isna().sum()} NaN values")
+        print(f"DEBUG: Before NaN removal - event_data has {event_data.isna().sum()} NaN values")
+        
+        # Remove rows where time_data is NaN after conversion, or event_data is invalid
+        valid_time_mask = ~time_data.isna() & (time_data >= 0)  # Time must be non-negative
+        valid_event_mask = ~event_data.isna() & event_data.isin([0, 1])  # Event must be 0 or 1
+        valid_mask = valid_time_mask & valid_event_mask
+        
+        print(f"DEBUG: Valid mask removes {(~valid_mask).sum()} rows")
+        
+        if valid_mask.sum() == 0:
+            raise ValueError("No valid data remaining after removing invalid time/event values")
+        
         time_data = time_data[valid_mask]
         event_data = event_data[valid_mask]
         clean_data = clean_data[valid_mask].reset_index(drop=True)
+        
+        print(f"DEBUG: After NaN removal - final data shape: {clean_data.shape}")
         
         # Validate survival data
         validation = self._validate_survival_data(time_data, event_data)
@@ -364,34 +402,46 @@ class PublicationVizEngine:
             survival_data = {}
             for i, group in enumerate(groups):
                 mask = clean_data[group_var] == group
-                group_time = time_data[mask].values.astype(float)  # Ensure float64
-                group_event = event_data[mask].values.astype(int)  # Ensure int
+                # Maintain consistent data types and ensure proper array handling
+                group_time = time_data[mask].values.astype(np.float64)  # Explicit float64
+                group_event = event_data[mask].values.astype(np.int32)  # Explicit int32
                 
                 print(f"DEBUG: Group '{group}' - size: {len(group_time)}, events: {group_event.sum()}")
                 print(f"DEBUG: Group '{group}' - time_dtype: {group_time.dtype}, event_dtype: {group_event.dtype}")
+                print(f"DEBUG: Group '{group}' - time range: [{group_time.min():.2f}, {group_time.max():.2f}]")
+                
+                # Additional validation before fitting
+                if len(group_time) == 0:
+                    raise ValueError(f"No data found for group '{group}'")
+                if group_time.min() < 0:
+                    raise ValueError(f"Negative time values in group '{group}'")
+                if not set(group_event).issubset({0, 1}):
+                    raise ValueError(f"Event values in group '{group}' must be 0 or 1, got: {set(group_event)}")
                 
                 # Fit Kaplan-Meier with error handling
                 try:
                     kmf = KaplanMeierFitter()
-                    kmf.fit(group_time, group_event, label=str(group))
+                    # Ensure arrays are contiguous for lifelines
+                    kmf.fit(np.ascontiguousarray(group_time), np.ascontiguousarray(group_event), label=str(group))
+                    print(f"DEBUG: Group '{group}' - KM fitting successful")
                 except Exception as e:
+                    print(f"DEBUG: KM fitting error for group '{group}': {str(e)}")
+                    print(f"DEBUG: Group '{group}' - time sample: {group_time[:5]}")
+                    print(f"DEBUG: Group '{group}' - event sample: {group_event[:5]}")
                     raise ValueError(f"KaplanMeierFitter failed for group '{group}': {str(e)}")
                 
-                # Plot survival curve with confidence intervals
+                # Plot survival curve WITHOUT confidence intervals
                 color = colors[i % len(colors)]
                 try:
-                    kmf.plot_survival_function(ax=ax_main, color=color, linewidth=2.5, alpha=0.8)
+                    kmf.plot_survival_function(ax=ax_main, color=color, linewidth=2.5, alpha=0.8, ci_show=False)
                 except Exception as e:
                     print(f"DEBUG: Error in plot_survival_function for {group}: {e}")
                     raise ValueError(f"Failed to plot survival curve for group '{group}': {str(e)}")
                 
-                # Skip confidence intervals completely to avoid division errors
-                print(f"DEBUG: Skipping confidence intervals for {group} to avoid potential errors")
-                
                 survival_data[group] = {
                     'kmf': kmf,
                     'median_survival': kmf.median_survival_time_,
-                    'events': int(pd.to_numeric(group_event, errors='coerce').sum()),
+                    'events': int(np.sum(group_event.astype(np.int32))),
                     'total': len(group_event)
                 }
             
@@ -416,17 +466,26 @@ class PublicationVizEngine:
             self._create_risk_table(ax_table, survival_data, groups)
             
         else:
-            # Single group survival curve
+            # Single group survival curve with robust type handling
             try:
+                # Ensure proper data types and contiguous arrays
+                single_time = np.ascontiguousarray(time_data.values.astype(np.float64))
+                single_event = np.ascontiguousarray(event_data.values.astype(np.int32))
+                
+                print(f"DEBUG: Single group - size: {len(single_time)}, events: {single_event.sum()}")
+                print(f"DEBUG: Single group - time_dtype: {single_time.dtype}, event_dtype: {single_event.dtype}")
+                
                 kmf = KaplanMeierFitter()
-                kmf.fit(time_data.values, event_data.values)
+                kmf.fit(single_time, single_event)
                 print(f"DEBUG: Single group KM fit successful, {len(time_data)} observations")
                 
-                kmf.plot_survival_function(ax=ax_main, color=self.style_config['colors'][0], linewidth=2.5)
+                kmf.plot_survival_function(ax=ax_main, color=self.style_config['colors'][0], linewidth=2.5, ci_show=False)
                 print(f"DEBUG: Single group plotting successful")
             except Exception as e:
                 print(f"DEBUG: Single group error: {e}")
                 print(f"DEBUG: Time data type: {time_data.dtype}, Event data type: {event_data.dtype}")
+                print(f"DEBUG: Time sample: {time_data.values[:5]}")
+                print(f"DEBUG: Event sample: {event_data.values[:5]}")
                 raise ValueError(f"KaplanMeierFitter failed for single group: {str(e)}")
             ax_table.axis('off')  # Hide risk table for single group
         
@@ -841,7 +900,7 @@ class PublicationVizEngine:
                         kmf = KaplanMeierFitter()
                         kmf.fit(time_data, event_data, label=str(group))
                         kmf.plot_survival_function(ax=ax, color=colors[i % len(colors)], 
-                                                 linewidth=line_width, alpha=0.8)
+                                                 linewidth=line_width, alpha=0.8, ci_show=False)
                     except Exception as e:
                         # If KM fails, add error text to plot
                         ax.text(0.5, 0.5, f'Survival analysis failed for {group}:\n{str(e)}', 

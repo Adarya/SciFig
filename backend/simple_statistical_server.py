@@ -25,7 +25,7 @@ app = FastAPI(title="SciFig AI Statistical Engine", version="1.0.0")
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],
+    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://localhost:5176"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -453,13 +453,45 @@ async def generate_publication_figure(request: PublicationFigureRequest):
 async def generate_display_figure(request: DisplayFigureRequest):
     """Generate publication-ready figure for display in the web interface"""
     try:
+        print(f"DEBUG: Received request with data length: {len(request.data)}")
+        print(f"DEBUG: Analysis type: {request.analysis_type}")
+        print(f"DEBUG: Variables - outcome: {request.outcome_variable}, group: {request.group_variable}, time: {request.time_variable}, event: {request.event_variable}")
+        
         df = pd.DataFrame(request.data)
+        print(f"DEBUG: Initial DataFrame shape: {df.shape}")
+        print(f"DEBUG: DataFrame columns: {df.columns.tolist()}")
+        print(f"DEBUG: DataFrame dtypes: {df.dtypes.to_dict()}")
+        
+        # Check for completely empty or invalid DataFrame
+        if df.empty:
+            raise HTTPException(status_code=400, detail="Empty dataset provided")
         
         # Clean data based on analysis type
-        if request.analysis_type == "survival_analysis":
+        if request.analysis_type in ["survival_analysis", "kaplan_meier"]:
             if not request.time_variable or not request.event_variable:
                 raise HTTPException(status_code=400, detail="Survival analysis requires time and event variables")
+            
+            print(f"DEBUG: Before cleaning - df shape: {df.shape}")
+            # Check if required columns exist
+            missing_cols = []
+            for col in [request.time_variable, request.event_variable, request.group_variable]:
+                if col not in df.columns:
+                    missing_cols.append(col)
+            if missing_cols:
+                raise HTTPException(status_code=400, detail=f"Missing required columns: {missing_cols}")
+            
+            # Show sample data before cleaning
+            print(f"DEBUG: Sample data before cleaning:")
+            for col in [request.time_variable, request.event_variable, request.group_variable]:
+                print(f"  {col}: {df[col].head().tolist()}")
+                print(f"  {col} null count: {df[col].isnull().sum()}")
+            
             df = df.dropna(subset=[request.time_variable, request.event_variable, request.group_variable])
+            print(f"DEBUG: After cleaning - df shape: {df.shape}")
+            
+            if df.empty:
+                raise HTTPException(status_code=400, detail="No valid data remaining after removing NaN values")
+                
         else:
             df = df.dropna(subset=[request.outcome_variable, request.group_variable])
         
@@ -469,6 +501,7 @@ async def generate_display_figure(request: DisplayFigureRequest):
         # Determine the appropriate visualization based on analysis type and data characteristics
         groups = df[request.group_variable].unique()
         n_groups = len(groups)
+        print(f"DEBUG: Found {n_groups} groups: {groups}")
         
         # Generate figure based on analysis type
         if request.analysis_type in ["independent_ttest", "mann_whitney_u", "one_way_anova"]:
@@ -480,7 +513,8 @@ async def generate_display_figure(request: DisplayFigureRequest):
                 custom_labels=request.custom_labels
             )
             
-        elif request.analysis_type == "survival_analysis" and request.time_variable and request.event_variable:
+        elif request.analysis_type in ["survival_analysis", "kaplan_meier"] and request.time_variable and request.event_variable:
+            print(f"DEBUG: Calling create_kaplan_meier_plot with cleaned data")
             figure_b64 = engine.create_kaplan_meier_plot(
                 data=df,
                 time_var=request.time_variable,
@@ -543,6 +577,10 @@ async def generate_display_figure(request: DisplayFigureRequest):
         }
         
     except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"ERROR in generate_display_figure: {str(e)}")
+        print(f"ERROR traceback: {error_traceback}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/generate_code_edit_figure")
