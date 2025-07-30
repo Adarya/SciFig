@@ -371,13 +371,55 @@ class ApiClient {
 
   analysis = {
     run: async (datasetId: string, config: AnalysisConfig): Promise<AnalysisResult> => {
-      return this.request<AnalysisResult>('/analysis/run', {
+      // First get the dataset data
+      const datasetData = await this.files.getDatasetData(datasetId);
+      
+      // Call the consolidated server's analyze endpoint
+      const authHeaders = await this.getAuthHeaders();
+      const response = await fetch(`${this.baseURL}/analyze`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
         body: JSON.stringify({
-          dataset_id: datasetId,
-          ...config,
+          data: (datasetData as { data: any[] }).data,
+          outcome_variable: config.outcome_variable,
+          group_variable: config.group_variable,
+          analysis_type: config.test_type || 'independent_ttest',
+          time_variable: config.time_variable,
+          event_variable: config.event_variable,
         }),
       });
+
+      if (!response.ok) {
+        throw new Error(`Analysis failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      // Convert legacy server response to expected AnalysisResult format
+      return {
+        id: `analysis_${Date.now()}`, // Generate a temp ID
+        status: 'completed',
+        created_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+        config: config,
+        results: result,
+        data_profile: {
+          sample_size: (datasetData as { data: any[] }).data.length,
+          outcome_type: 'continuous', // Default
+          n_groups: config.group_variable ? 2 : 1,
+        },
+        recommendation: {
+          primary: result.test_name || 'Statistical test',
+          alternative: ''
+        },
+        validation: {
+          issues: [],
+          warnings: []
+        }
+      };
     },
 
     get: async (analysisId: string): Promise<AnalysisResult> => {
