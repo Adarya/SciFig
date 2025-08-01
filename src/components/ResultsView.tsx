@@ -17,7 +17,7 @@ import {
 import { EngineOrchestrator, AnalysisWorkflow, StatisticalResult } from '../utils/statisticalEngine';
 import { BackendDownloader } from '../utils/backendDownloader';
 import { apiClient, handleApiError, Dataset } from '../services/apiClient';
-import { useBackendAnalysis } from '../hooks/useBackendAnalysis';
+import { useBackendAnalysis, useEnhancedAnalysis } from '../hooks/useBackendAnalysis';
 import PythonFigureDisplay from './PythonFigureDisplay';
 import InteractiveCodeEditor from './InteractiveCodeEditor';
 import VisualizationEditor from './VisualizationEditor';
