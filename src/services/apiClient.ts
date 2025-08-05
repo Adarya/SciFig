@@ -138,6 +138,60 @@ export interface AuthResponse {
   };
 }
 
+// Add new interfaces for comprehensive analysis
+export interface DataProfile {
+  outcome_type: 'continuous' | 'categorical';
+  n_groups: number;
+  sample_size: number;
+  time_variable?: string;
+  event_variable?: string;
+  columns: string[];
+}
+
+export interface AssumptionResult {
+  test: string;
+  passed: boolean;
+  statistic?: number;
+  p_value?: number;
+  reason?: string;
+}
+
+export interface ComprehensiveAnalysisRequest {
+  data: any[];
+  outcome_variable: string;
+  group_variable?: string;
+  analysis_type?: string;
+  time_variable?: string;
+  event_variable?: string;
+  check_assumptions?: boolean;
+}
+
+export interface ComprehensiveAnalysisResult {
+  test_name: string;
+  statistic: number;
+  p_value: number;
+  effect_size?: {
+    name: string;
+    value: number;
+  };
+  confidence_interval?: [number, number];
+  summary: string;
+  interpretation: string;
+  assumptions_checked: AssumptionResult[];
+  assumptions_met: boolean;
+  recommended_test: string;
+  alternative_test?: string;
+  sample_sizes: Record<string, number>;
+  descriptive_stats: Record<string, any>;
+  data_profile: DataProfile;
+}
+
+export interface TestRecommendation {
+  recommended_test: string;
+  alternative_test?: string;
+  reasoning: string;
+}
+
 // =====================================
 // API Client Class
 // =====================================
@@ -317,13 +371,55 @@ class ApiClient {
 
   analysis = {
     run: async (datasetId: string, config: AnalysisConfig): Promise<AnalysisResult> => {
-      return this.request<AnalysisResult>('/analysis/run', {
+      // First get the dataset data
+      const datasetData = await this.files.getDatasetData(datasetId);
+      
+      // Call the consolidated server's analyze endpoint
+      const authHeaders = await this.getAuthHeaders();
+      const response = await fetch(`${this.baseURL}/analyze`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
         body: JSON.stringify({
-          dataset_id: datasetId,
-          ...config,
+          data: (datasetData as { data: any[] }).data,
+          outcome_variable: config.outcome_variable,
+          group_variable: config.group_variable,
+          analysis_type: config.test_type || 'independent_ttest',
+          time_variable: config.time_variable,
+          event_variable: config.event_variable,
         }),
       });
+
+      if (!response.ok) {
+        throw new Error(`Analysis failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      // Convert legacy server response to expected AnalysisResult format
+      return {
+        id: `analysis_${Date.now()}`, // Generate a temp ID
+        status: 'completed',
+        created_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+        config: config,
+        results: result,
+        data_profile: {
+          sample_size: (datasetData as { data: any[] }).data.length,
+          outcome_type: 'continuous', // Default
+          n_groups: config.group_variable ? 2 : 1,
+        },
+        recommendation: {
+          primary: result.test_name || 'Statistical test',
+          alternative: ''
+        },
+        validation: {
+          issues: [],
+          warnings: []
+        }
+      };
     },
 
     get: async (analysisId: string): Promise<AnalysisResult> => {
@@ -345,6 +441,103 @@ class ApiClient {
       return this.request<Figure[]>(`/analysis/${analysisId}/figures/regenerate`, {
         method: 'POST',
         body: JSON.stringify(config),
+      });
+    },
+
+    // Enhanced comprehensive analysis endpoint
+    runComprehensive: async (request: ComprehensiveAnalysisRequest): Promise<ComprehensiveAnalysisResult> => {
+      // Note: This endpoint is on the statistical server (port 8000), not the main API
+      const response = await fetch(`${API_BASE_URL}/analyze/comprehensive`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+        throw new Error(errorData.detail || `Analysis failed: ${response.status}`);
+      }
+
+      return response.json();
+    },
+
+    // Get test recommendation
+    recommendTest: async (dataProfile: DataProfile): Promise<TestRecommendation> => {
+      const response = await fetch(`${API_BASE_URL}/recommend_test`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(dataProfile)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+        throw new Error(errorData.detail || `Test recommendation failed: ${response.status}`);
+      }
+
+      return response.json();
+    },
+
+    // Check statistical assumptions
+    checkAssumptions: async (request: {
+      data: any[];
+      outcome_variable: string;
+      group_variable?: string;
+      analysis_type: string;
+    }): Promise<{
+      assumptions: AssumptionResult[];
+      all_met: boolean;
+    }> => {
+      const response = await fetch(`${API_BASE_URL}/check_assumptions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+        throw new Error(errorData.detail || `Assumption check failed: ${response.status}`);
+      }
+
+      return response.json();
+    },
+
+    // Enhanced run method that uses comprehensive analysis by default
+    runEnhanced: async (datasetId: string, config: {
+      outcome_variable: string;
+      group_variable?: string;
+      test_type?: string;
+      time_variable?: string;
+      event_variable?: string;
+      check_assumptions?: boolean;
+    }): Promise<ComprehensiveAnalysisResult> => {
+      // Get dataset data first from main API
+      const response = await fetch(`${API_BASE_URL}${API_PREFIX}/files/datasets/${datasetId}/data`, {
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to get dataset data: ${response.status}`);
+      }
+      
+      const datasetData = await response.json();
+      
+      // Run comprehensive analysis on statistical server
+      return apiClient.analysis.runComprehensive({
+        data: datasetData.data,
+        outcome_variable: config.outcome_variable,
+        group_variable: config.group_variable,
+        analysis_type: config.test_type,
+        time_variable: config.time_variable,
+        event_variable: config.event_variable,
+        check_assumptions: config.check_assumptions ?? true
       });
     },
   };

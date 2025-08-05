@@ -47,7 +47,7 @@ echo.
 echo    2. Activate environment and start the server:
 echo       conda activate scifig-ai
 echo       set PYTHONPATH=%cd%
-echo       python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+echo       python -m uvicorn scifig_api_server:app --reload --host 127.0.0.1 --port 8000
 echo.
 echo 🌐 Once running, the backend will be available at:
 echo    • API: http://localhost:8000

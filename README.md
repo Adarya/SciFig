@@ -85,7 +85,7 @@ python3 server.py
 # From backend directory
 cd backend
 export PYTHONPATH=$(pwd)
-/opt/anaconda3/envs/scifig-ai/bin/python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+/opt/anaconda3/envs/scifig-ai/bin/python -m uvicorn scifig_api_server:app --reload --host 127.0.0.1 --port 8000
 # Backend will be at: http://localhost:8000
 ```
 
@@ -103,15 +103,17 @@ export PYTHONPATH=$(pwd)
   - Should return API analysis status
 - **Figure Generation**: Backend supports publication-ready figure generation endpoints
 
-### 🆕 New Features (Post-Merge January 2025)
+### 🆕 New Features (Consolidated Server January 2025)
 
-The system now includes advanced functionality from the latest merge:
+The system now uses a **single consolidated server** (`scifig_api_server.py`) with enhanced functionality:
 
+- **🏗️ Monolithic Architecture** - Single server combining all functionality (authentication, files, statistics, figures)
+- **✅ Enhanced Statistical Analysis** - Comprehensive assumption checking and test recommendations
 - **✅ Kaplan-Meier Survival Analysis** - Full survival curve analysis with lifelines
 - **✅ Interactive Code Editor** - Monaco editor for code manipulation  
 - **✅ Publication Figure Engine** - Advanced figure generation with journal-specific styling
-- **✅ Enhanced Statistical Analysis** - Comprehensive test suite including survival analysis
-- **✅ Gemini AI Integration** - Intelligent analysis recommendations
+- **✅ Intelligent Test Recommendations** - AI-powered analysis selection based on data characteristics
+- **🔍 Assumption Validation** - Automatic statistical assumption checking with fallback recommendations
 
 ### 🐳 Alternative: Docker Setup
 
@@ -129,8 +131,9 @@ alembic upgrade head  # Database migrations
 
 **Common Issues & Solutions:**
 
-1. **"ModuleNotFoundError: No module named 'app'"**
+1. **"ModuleNotFoundError: No module named 'scifig_api_server'"**
    - Make sure you're running uvicorn from the `backend/` directory
+   - Use the correct command: `uvicorn scifig_api_server:app --reload --host 127.0.0.1 --port 8000`
    - Set `PYTHONPATH` correctly: `export PYTHONPATH=$(pwd)` from backend directory
 
 2. **"ModuleNotFoundError: No module named 'jwt'"**
@@ -146,3 +149,45 @@ alembic upgrade head  # Database migrations
 5. **Port already in use**
    - Kill existing processes: `pkill -f uvicorn` or `pkill -f python`
    - Try different ports if needed
+
+## 🧪 Testing the Consolidated Server
+
+### Automated Testing
+
+We've created comprehensive tests to verify all functionality:
+
+```bash
+# Unit tests with pytest
+cd backend
+python -m pytest tests/test_api.py::TestHealthEndpoints tests/test_api.py::TestEnhancedStatisticalAPI -v
+
+# Live server testing
+python test_consolidated_server.py
+```
+
+### Manual Testing
+
+1. **Health Check**: `curl http://localhost:8000/health`
+2. **Enhanced Analysis**: 
+   ```bash
+   curl -X POST http://localhost:8000/analyze/comprehensive \
+     -H "Content-Type: application/json" \
+     -d '{"data": [{"group": "A", "value": 10}, {"group": "B", "value": 15}], "outcome_variable": "value", "group_variable": "group", "analysis_type": "independent_ttest"}'
+   ```
+3. **Test Recommendation**:
+   ```bash
+   curl -X POST http://localhost:8000/recommend_test \
+     -H "Content-Type: application/json" \
+     -d '{"outcome_type": "continuous", "n_groups": 2, "sample_size": 100, "columns": ["group", "value"]}'
+   ```
+
+## 🏗️ Architecture Overview
+
+**Consolidated Monolithic Server (`scifig_api_server.py`)**:
+- ✅ **Single Port** (8000): All functionality unified  
+- ✅ **Enhanced Statistics**: Comprehensive analysis with assumption checking
+- ✅ **Authentication & Users**: Full user management system
+- ✅ **File Management**: Upload, processing, and data management
+- ✅ **Project Management**: Collaborative research projects
+- ✅ **Publication Figures**: Journal-ready visualizations
+- ✅ **Legacy Compatibility**: Backwards compatible with existing frontend
