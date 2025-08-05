@@ -73,11 +73,11 @@ conda env create -f environment.yml
 
 #### 4. Start Services
 
-**Terminal 1: Start Frontend Server (port 3000)**
+**Terminal 1: Start Frontend Server (port 5173)**
 ```bash
 # From project root
-python3 server.py
-# Frontend will be at: http://localhost:3000
+npm run dev
+# Frontend will be at: http://localhost:5173
 ```
 
 **Terminal 2: Start Backend Server (port 8000)**
@@ -85,56 +85,50 @@ python3 server.py
 # From backend directory
 cd backend
 export PYTHONPATH=$(pwd)
-/opt/anaconda3/envs/scifig-ai/bin/python -m uvicorn scifig_api_server:app --reload --host 127.0.0.1 --port 8000
+python simple_statistical_server.py
 # Backend will be at: http://localhost:8000
 ```
 
 #### 5. Verify Everything Works ✅
 
 **Frontend Tests:**
-- **Frontend**: http://localhost:3000 (SciFig AI interface)
+- **Frontend**: http://localhost:5173 (SciFig AI interface)
 
 **Backend Tests:**
 - **Health Check**: `curl http://localhost:8000/health` 
-  - Should return: `{"status":"degraded","version":"1.0.0"...}` (degraded is normal - DB warnings don't affect functionality)
+  - Should return: `{"status":"healthy","service":"Statistical Engine"}`
 - **Statistical Analysis**: `curl -X POST http://localhost:8000/analyze -H "Content-Type: application/json" -d '{"data": [{"group": "A", "value": 10}, {"group": "A", "value": 12}, {"group": "B", "value": 15}, {"group": "B", "value": 17}], "outcome_variable": "value", "group_variable": "group", "analysis_type": "independent_ttest"}'`
   - Should return statistical analysis results
-- **API Status**: `curl http://localhost:8000/api/v1/status`
-  - Should return API analysis status
 - **Figure Generation**: Backend supports publication-ready figure generation endpoints
 
-### 🆕 New Features (Consolidated Server January 2025)
+### 🆕 Current Features (Simple Statistical Server)
 
-The system now uses a **single consolidated server** (`scifig_api_server.py`) with enhanced functionality:
+The system uses a **simple statistical server** (`simple_statistical_server.py`) with core functionality:
 
-- **🏗️ Monolithic Architecture** - Single server combining all functionality (authentication, files, statistics, figures)
-- **✅ Enhanced Statistical Analysis** - Comprehensive assumption checking and test recommendations
-- **✅ Kaplan-Meier Survival Analysis** - Full survival curve analysis with lifelines
-- **✅ Interactive Code Editor** - Monaco editor for code manipulation  
-- **✅ Publication Figure Engine** - Advanced figure generation with journal-specific styling
-- **✅ Intelligent Test Recommendations** - AI-powered analysis selection based on data characteristics
-- **🔍 Assumption Validation** - Automatic statistical assumption checking with fallback recommendations
+- **📊 Statistical Analysis** - T-tests, ANOVA, Chi-square, Mann-Whitney U tests
+- **🧬 Survival Analysis** - Kaplan-Meier survival curves with lifelines
+- **📈 Multivariate Analysis** - Logistic, linear, and Cox regression with forest plots
+- **🎨 Publication Figures** - Journal-specific figure generation (Nature, Science, NEJM, Cell)
+- **🔧 Code Editing** - Support for custom figure parameters and code modifications
+- **📱 Display Figures** - Web-optimized figure rendering
 
-### 🐳 Alternative: Docker Setup
+### 📦 Dependencies
+
+The backend uses a minimal set of Python dependencies for statistical analysis:
 
 ```bash
-# From backend directory
-docker-compose up -d db redis
-
-# For full containerized setup (if preferred)
-cd backend
-conda activate scifig-ai
-alembic upgrade head  # Database migrations
+# Core statistical libraries
+pip install fastapi uvicorn pandas numpy scipy matplotlib seaborn statsmodels lifelines
 ```
 
 ### ⚠️ Troubleshooting
 
 **Common Issues & Solutions:**
 
-1. **"ModuleNotFoundError: No module named 'scifig_api_server'"**
-   - Make sure you're running uvicorn from the `backend/` directory
-   - Use the correct command: `uvicorn scifig_api_server:app --reload --host 127.0.0.1 --port 8000`
-   - Set `PYTHONPATH` correctly: `export PYTHONPATH=$(pwd)` from backend directory
+1. **Backend server not starting**
+   - Make sure you're in the `backend/` directory
+   - Use the correct command: `python simple_statistical_server.py`
+   - Install missing dependencies: `pip install -r requirements.txt`
 
 2. **"ModuleNotFoundError: No module named 'jwt'"**
    - Install missing dependencies: `/opt/anaconda3/envs/scifig-ai/bin/pip install PyJWT python-jose[cryptography]`
@@ -147,47 +141,31 @@ alembic upgrade head  # Database migrations
    - Core statistical and API functionality works regardless
 
 5. **Port already in use**
-   - Kill existing processes: `pkill -f uvicorn` or `pkill -f python`
+   - Kill existing processes: `pkill -f python`
    - Try different ports if needed
 
-## 🧪 Testing the Consolidated Server
+## 🧪 Testing the Server
 
-### Automated Testing
+### Quick Testing
 
-We've created comprehensive tests to verify all functionality:
+Test that the server is working properly:
 
 ```bash
-# Unit tests with pytest
-cd backend
-python -m pytest tests/test_api.py::TestHealthEndpoints tests/test_api.py::TestEnhancedStatisticalAPI -v
+# Health check
+curl http://localhost:8000/health
 
-# Live server testing
-python test_consolidated_server.py
+# Simple statistical analysis test
+curl -X POST http://localhost:8000/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"data": [{"group": "A", "value": 10}, {"group": "A", "value": 12}, {"group": "B", "value": 15}, {"group": "B", "value": 17}], "outcome_variable": "value", "group_variable": "group", "analysis_type": "independent_ttest"}'
 ```
-
-### Manual Testing
-
-1. **Health Check**: `curl http://localhost:8000/health`
-2. **Enhanced Analysis**: 
-   ```bash
-   curl -X POST http://localhost:8000/analyze/comprehensive \
-     -H "Content-Type: application/json" \
-     -d '{"data": [{"group": "A", "value": 10}, {"group": "B", "value": 15}], "outcome_variable": "value", "group_variable": "group", "analysis_type": "independent_ttest"}'
-   ```
-3. **Test Recommendation**:
-   ```bash
-   curl -X POST http://localhost:8000/recommend_test \
-     -H "Content-Type: application/json" \
-     -d '{"outcome_type": "continuous", "n_groups": 2, "sample_size": 100, "columns": ["group", "value"]}'
-   ```
 
 ## 🏗️ Architecture Overview
 
-**Consolidated Monolithic Server (`scifig_api_server.py`)**:
-- ✅ **Single Port** (8000): All functionality unified  
-- ✅ **Enhanced Statistics**: Comprehensive analysis with assumption checking
-- ✅ **Authentication & Users**: Full user management system
-- ✅ **File Management**: Upload, processing, and data management
-- ✅ **Project Management**: Collaborative research projects
-- ✅ **Publication Figures**: Journal-ready visualizations
-- ✅ **Legacy Compatibility**: Backwards compatible with existing frontend
+**Simple Statistical Server (`simple_statistical_server.py`)**:
+- 🎯 **Single Port** (8000): Statistical analysis and figure generation
+- 📊 **Core Statistics**: T-tests, ANOVA, Chi-square, Mann-Whitney U, survival analysis
+- 📈 **Multivariate Models**: Logistic, linear, and Cox regression
+- 🎨 **Publication Figures**: Journal-ready visualizations with multiple format support
+- 🖥️ **Web Interface**: Compatible with React frontend via CORS
+- ⚡ **Fast Processing**: Direct Python statistical computation without database overhead

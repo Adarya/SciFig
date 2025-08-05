@@ -1,1 +1,0 @@
-# SciFig AI Backend Application 
