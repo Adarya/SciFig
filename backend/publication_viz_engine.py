@@ -557,6 +557,140 @@ class PublicationVizEngine:
         plt.tight_layout()
         return self._figure_to_base64(fig)
     
+    def create_multivariate_forest_plot(self, results_data: List[Dict], title: str = None, 
+                                      effect_measure: str = "Effect Size") -> str:
+        """Create publication-ready forest plot for multivariate analysis results"""
+        
+        n_variables = len(results_data)
+        if n_variables == 0:
+            raise ValueError("No results data provided for forest plot")
+        
+        # Calculate figure dimensions
+        fig_width = 12
+        fig_height = max(6, n_variables * 0.8 + 3)  # Dynamic height based on number of variables
+        
+        fig, ax = plt.subplots(figsize=(fig_width, fig_height), dpi=self.style_config['dpi'])
+        
+        # Set up positions (inverted so first variable is at top)
+        y_positions = list(range(n_variables))[::-1]
+        
+        # Extract data for plotting
+        effects = [result['effect'] for result in results_data]
+        ci_lowers = [result['ci_lower'] for result in results_data]
+        ci_uppers = [result['ci_upper'] for result in results_data]
+        p_values = [result['p_value'] for result in results_data]
+        variable_names = [result['name'] for result in results_data]
+        
+        # Determine reference line position based on effect measure
+        ref_line_x = 1.0 if effect_measure in ['Odds Ratio', 'Hazard Ratio'] else 0.0
+        
+        for i, (y_pos, effect, ci_lower, ci_upper, p_val, var_name) in enumerate(
+            zip(y_positions, effects, ci_lowers, ci_uppers, p_values, variable_names)):
+            
+            # Determine color based on significance
+            color = self.style_config['colors'][0] if p_val < 0.05 else '#666666'
+            alpha = 0.8 if p_val < 0.05 else 0.6
+            
+            # Calculate marker size (larger for more significant results)
+            if p_val < 0.001:
+                marker_size = 120
+            elif p_val < 0.01:
+                marker_size = 100
+            elif p_val < 0.05:
+                marker_size = 80
+            else:
+                marker_size = 60
+            
+            # Plot point estimate
+            ax.scatter(effect, y_pos, s=marker_size, color=color, alpha=alpha,
+                      edgecolor='black', linewidth=1.5, zorder=3)
+            
+            # Plot confidence interval
+            ax.plot([ci_lower, ci_upper], [y_pos, y_pos], color=color, 
+                   linewidth=2.5, alpha=alpha, zorder=2)
+            ax.plot([ci_lower, ci_lower], [y_pos-0.15, y_pos+0.15], color=color, linewidth=2.5)
+            ax.plot([ci_upper, ci_upper], [y_pos-0.15, y_pos+0.15], color=color, linewidth=2.5)
+            
+            # Add variable name on the left
+            ax.text(-0.02, y_pos, var_name, ha='right', va='center', 
+                   fontsize=self.style_config['font_sizes']['ticks'], 
+                   fontweight='bold' if p_val < 0.05 else 'normal',
+                   transform=ax.get_yaxis_transform())
+            
+            # Add effect size and CI text on the right
+            if effect_measure == 'Beta Coefficient':
+                effect_text = f"{effect:.3f} ({ci_lower:.3f}, {ci_upper:.3f})"
+            else:
+                effect_text = f"{effect:.2f} ({ci_lower:.2f}, {ci_upper:.2f})"
+            
+            # Add p-value
+            if p_val < 0.001:
+                p_text = "p<0.001"
+            elif p_val < 0.01:
+                p_text = f"p<0.01"
+            elif p_val < 0.05:
+                p_text = f"p={p_val:.3f}"
+            else:
+                p_text = f"p={p_val:.3f}"
+            
+            combined_text = f"{effect_text}, {p_text}"
+            
+            ax.text(1.02, y_pos, combined_text, ha='left', va='center',
+                   fontsize=self.style_config['font_sizes']['ticks']-1,
+                   fontweight='bold' if p_val < 0.05 else 'normal',
+                   transform=ax.get_yaxis_transform())
+        
+        # Add reference line (OR=1, HR=1, or β=0)
+        ax.axvline(x=ref_line_x, color='red', linestyle='--', alpha=0.7, linewidth=2, zorder=1)
+        
+        # Styling
+        ax.set_yticks(y_positions)
+        ax.set_yticklabels([])  # Variable names are added manually
+        ax.set_ylim(-0.5, n_variables - 0.5)
+        
+        # Set x-axis label
+        ax.set_xlabel(f'{effect_measure} (95% CI)', 
+                     fontsize=self.style_config['font_sizes']['labels'], 
+                     fontweight='bold')
+        
+        # Add column headers
+        ax.text(-0.02, n_variables + 0.2, 'Variable', ha='right', va='bottom',
+               fontsize=self.style_config['font_sizes']['labels'], fontweight='bold',
+               transform=ax.get_yaxis_transform())
+        
+        ax.text(1.02, n_variables + 0.2, f'{effect_measure} (95% CI), p-value', 
+               ha='left', va='bottom',
+               fontsize=self.style_config['font_sizes']['labels'], fontweight='bold',
+               transform=ax.get_yaxis_transform())
+        
+        # Remove spines
+        ax.spines['left'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        
+        # Set title
+        if title:
+            ax.set_title(title, fontsize=self.style_config['font_sizes']['title'], 
+                        fontweight='bold', pad=20)
+        
+        # Add significance legend
+        legend_elements = [
+            plt.scatter([], [], s=120, c=self.style_config['colors'][0], alpha=0.8, 
+                       edgecolor='black', linewidth=1.5, label='p < 0.001'),
+            plt.scatter([], [], s=100, c=self.style_config['colors'][0], alpha=0.8, 
+                       edgecolor='black', linewidth=1.5, label='p < 0.01'),
+            plt.scatter([], [], s=80, c=self.style_config['colors'][0], alpha=0.8, 
+                       edgecolor='black', linewidth=1.5, label='p < 0.05'),
+            plt.scatter([], [], s=60, c='#666666', alpha=0.6, 
+                       edgecolor='black', linewidth=1.5, label='p ≥ 0.05')
+        ]
+        
+        ax.legend(handles=legend_elements, loc='upper right', frameon=False,
+                 fontsize=self.style_config['font_sizes']['legend']-2)
+        
+        plt.tight_layout()
+        return self._figure_to_base64(fig)
+    
     def create_contingency_heatmap(self, data: pd.DataFrame, outcome_var: str, group_var: str,
                                  title: str = None, custom_labels: Dict = None, format_type: str = 'png') -> str:
         """Create publication-ready contingency table heatmap for chi-square analysis"""

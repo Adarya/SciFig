@@ -75,6 +75,79 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
     }
   }, []);
 
+  // Multivariate analysis handler
+  const runMultivariateAnalysis = async (config: any): Promise<AnalysisWorkflow> => {
+    if (!config.predictorVariables || config.predictorVariables.length === 0) {
+      throw new Error('No predictor variables selected for multivariate analysis');
+    }
+
+    try {
+      const response = await fetch('http://localhost:8000/analyze_multivariate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          data: config.data,
+          outcome_variable: config.outcomeVariable,
+          predictor_variables: config.predictorVariables,
+          time_variable: config.timeVariable || null,
+          event_variable: config.eventVariable || null,
+          analysis_type: 'multivariate_analysis'
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+                    // Convert backend result to frontend AnalysisWorkflow format
+       return {
+         data_profile: {
+           sample_size: result.sample_size,
+           outcome_variable: config.outcomeVariable,
+           outcome_type: config.outcomeType || 'continuous',
+           group_variable: undefined,
+           n_groups: undefined,
+           time_variable: config.timeVariable,
+           event_variable: config.eventVariable,
+           is_paired: false,
+           variables: config.predictorVariables || []
+         },
+         recommendation: {
+           primary: result.model_type,
+           alternative: result.model_type
+         },
+         validation: {
+           issues: [],
+           warnings: []
+         },
+         final_selection: result.model_type,
+         final_result: {
+           test_name: result.analysis_type,
+           statistic: { model_type: result.model_type },
+           p_value: 0, // Will be shown in individual results
+           effect_size: result.results?.length > 0 ? result.results[0].effect_measure : 'Effect Size',
+           confidence_interval: undefined,
+           summary: result.message,
+           assumptions_met: true,
+           sample_sizes: { total: result.sample_size },
+           descriptive_stats: {},
+           forest_plot: result.forest_plot,
+           multivariate_results: result.results,
+           model_summary: result.model_summary,
+           formula: result.formula
+         } as any
+       } as any;
+    } catch (error) {
+      console.error('Multivariate analysis error:', error);
+      throw error;
+    }
+  };
+
   const runClientSideAnalysis = async () => {
     setIsClientAnalyzing(true);
     setClientError(null);
@@ -85,7 +158,10 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
       let results: AnalysisWorkflow;
       
       // Handle different analysis types
-      if (['chi_square', 'fisher_exact', 'kaplan_meier'].includes(analysisConfig.type)) {
+      if (analysisConfig.type === 'multivariate_analysis') {
+        // Handle multivariate analysis with direct backend call
+        results = await runMultivariateAnalysis(analysisConfig);
+      } else if (['chi_square', 'fisher_exact', 'kaplan_meier'].includes(analysisConfig.type)) {
         // For special analyses that need custom handling
         results = orchestrator.runCustomAnalysis(
           analysisConfig.data,
@@ -119,10 +195,36 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
   const generateMethodsText = (result: StatisticalResult): string => {
     if ('error' in result) return '';
 
-    const testName = result.test_name;
+    const testName = result.test_name || '';
     let methodsText = '';
     
-    // Data description
+    // Handle multivariate analysis results differently
+    if ((result as any).multivariate_results || testName.includes('multivariate') || testName.includes('regression')) {
+      const mvResults = (result as any).multivariate_results || [];
+      const sampleSize = (result as any).sample_sizes?.total || 'N';
+      
+      methodsText += `Multivariate analysis was conducted with ${sampleSize} observations. `;
+      
+      if (testName.includes('cox') || testName.includes('Cox')) {
+        methodsText += `Cox proportional hazards regression was performed to examine the relationship between multiple predictors and time-to-event outcomes. `;
+      } else if (testName.includes('logistic')) {
+        methodsText += `Logistic regression was performed to examine the relationship between multiple predictors and the binary outcome. `;
+      } else if (testName.includes('linear')) {
+        methodsText += `Multiple linear regression was performed to examine the relationship between multiple predictors and the continuous outcome. `;
+      }
+      
+      if (mvResults.length > 0) {
+        methodsText += `The model included ${mvResults.length} predictor variable${mvResults.length > 1 ? 's' : ''}. `;
+        const significantVars = mvResults.filter((v: any) => v.p_value && v.p_value < 0.05);
+        if (significantVars.length > 0) {
+          methodsText += `${significantVars.length} predictor${significantVars.length > 1 ? 's' : ''} showed statistically significant associations. `;
+        }
+      }
+      
+      return methodsText;
+    }
+    
+    // Data description for traditional tests
     if (result.groups) {
       const totalN = Object.values(result.groups).reduce((sum, stats) => sum + stats.n, 0);
       methodsText += `Data from ${totalN} participants were analyzed. `;
@@ -160,7 +262,9 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
       methodsText += 'Descriptive statistics by group: ';
       methodsText += groupNames.map((name, i) => {
         const stats = groupStats[i];
-        return `${name} (n=${stats.n}, M=${stats.mean.toFixed(2)}, SD=${stats.std_dev.toFixed(2)})`;
+        const mean = stats.mean !== undefined ? stats.mean.toFixed(2) : 'N/A';
+        const sd = stats.std_dev !== undefined ? stats.std_dev.toFixed(2) : 'N/A';
+        return `${name} (n=${stats.n || 'N/A'}, M=${mean}, SD=${sd})`;
       }).join('; ') + '. ';
     }
     
@@ -168,24 +272,28 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
     if (result.survival_data?.group_stats) {
       const groupStats = Object.entries(result.survival_data.group_stats);
       methodsText += 'Survival characteristics: ';
-      methodsText += groupStats.map(([group, stats]) => 
-        `${group} group had ${stats.events} events out of ${stats.n} participants (event rate: ${((stats.events/stats.n)*100).toFixed(1)}%), with median survival of ${stats.median_survival.toFixed(1)} time units`
-      ).join('; ') + '. ';
+      methodsText += groupStats.map(([group, stats]) => {
+        const events = stats.events || 0;
+        const n = stats.n || 1;
+        const eventRate = ((events/n)*100).toFixed(1);
+        const medianSurvival = stats.median_survival !== undefined ? stats.median_survival.toFixed(1) : 'N/A';
+        return `${group} group had ${events} events out of ${n} participants (event rate: ${eventRate}%), with median survival of ${medianSurvival} time units`;
+      }).join('; ') + '. ';
     }
     
     // Statistical results
-    if (testName.includes('T-Test') && result.statistic.t_statistic) {
+    if (testName.includes('T-Test') && result.statistic?.t_statistic) {
       methodsText += `The analysis yielded t(${result.statistic.degrees_of_freedom}) = ${result.statistic.t_statistic.toFixed(3)}, p = ${result.p_value < 0.001 ? '<0.001' : result.p_value.toFixed(3)}`;
-    } else if (testName.includes('ANOVA') && result.statistic.F_statistic) {
+    } else if (testName.includes('ANOVA') && result.statistic?.F_statistic) {
       methodsText += `The ANOVA revealed F(${result.statistic.df_num}, ${result.statistic.df_den}) = ${result.statistic.F_statistic.toFixed(3)}, p = ${result.p_value < 0.001 ? '<0.001' : result.p_value.toFixed(3)}`;
-    } else if (testName.includes('Chi-Square') && result.statistic.chi_square) {
+    } else if (testName.includes('Chi-Square') && result.statistic?.chi_square) {
       methodsText += `The chi-square analysis yielded χ²(${result.statistic.degrees_of_freedom}) = ${result.statistic.chi_square.toFixed(3)}, p = ${result.p_value < 0.001 ? '<0.001' : result.p_value.toFixed(3)}`;
-    } else {
+    } else if (result.p_value !== undefined) {
       methodsText += `Statistical analysis yielded p = ${result.p_value < 0.001 ? '<0.001' : result.p_value.toFixed(3)}`;
     }
     
     // Effect size interpretation
-    if (result.effect_size) {
+    if (result.effect_size && result.effect_size.name && result.effect_size.value !== undefined) {
       const effectSize = Math.abs(result.effect_size.value);
       let magnitude = '';
       
@@ -203,7 +311,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
     }
     
     // Statistical significance interpretation
-    if (result.p_value < 0.05) {
+    if (result.p_value !== undefined && result.p_value < 0.05) {
       methodsText += '. The result was statistically significant';
       if (result.p_value < 0.001) {
         methodsText += ' at the p < 0.001 level';
@@ -484,21 +592,25 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
                   <div>
                     <h4 className="font-semibold text-gray-900 mb-3">Test Statistics</h4>
                     <div className="space-y-2 text-sm">
-                      {Object.entries(result.statistic).map(([key, value]) => (
+                      {Object.entries(result.statistic || {}).map(([key, value]) => (
                         <div key={key} className="flex justify-between">
                           <span className="text-gray-600">{key.replace('_', ' ')}:</span>
-                          <span className="font-medium">{typeof value === 'number' ? value.toFixed(3) : value}</span>
+                          <span className="font-medium">
+                            {typeof value === 'number' && !isNaN(value) ? value.toFixed(3) : (value || 'N/A')}
+                          </span>
                         </div>
                       ))}
                       <div className="flex justify-between">
                         <span className="text-gray-600">p-value:</span>
                         <span className="font-medium">
-                          {result.p_value < 0.001 ? 'p < 0.001' : `p = ${result.p_value.toFixed(3)}`}
+                          {result.p_value !== undefined 
+                            ? (result.p_value < 0.001 ? 'p < 0.001' : `p = ${result.p_value.toFixed(3)}`)
+                            : 'p = N/A'}
                         </span>
                       </div>
                     </div>
                   </div>
-                  {result.effect_size && (
+                  {result.effect_size && result.effect_size.value !== undefined && (
                     <div>
                       <h4 className="font-semibold text-gray-900 mb-3">Effect Size</h4>
                       <div className="space-y-2 text-sm">
@@ -517,6 +629,46 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
                     </div>
                   )}
                 </div>
+
+                {/* Multivariate-specific results */}
+                {(result as any).multivariate_results && (
+                  <div className="mt-6 pt-6 border-t border-blue-200">
+                    <h4 className="font-semibold text-gray-900 mb-3">Multivariate Model Results</h4>
+                                         <div className="space-y-3">
+                       {(result as any).multivariate_results.map((variable: any, index: number) => (
+                        <div key={index} className="bg-white rounded-lg p-3 border border-gray-200">
+                          <div className="flex justify-between items-center">
+                            <span className="font-medium text-gray-900">{variable.variable}</span>
+                            <div className="text-right">
+                              <div className="text-sm">
+                                <span className="font-medium">
+                                  {variable.effect_measure === 'Beta Coefficient' 
+                                    ? `β = ${variable.odds_ratio?.toFixed(3) || 'N/A'}` 
+                                    : `${variable.effect_measure || 'Effect'} = ${variable.odds_ratio?.toFixed(2) || 'N/A'}`}
+                                </span>
+                                <span className="text-gray-500 ml-2">
+                                  (95% CI: {variable.ci_lower?.toFixed(2) || 'N/A'}-{variable.ci_upper?.toFixed(2) || 'N/A'})
+                                </span>
+                              </div>
+                              <div className="text-xs text-gray-600">
+                                {variable.p_value !== undefined 
+                                  ? (variable.p_value < 0.001 ? 'p < 0.001' : `p = ${variable.p_value.toFixed(3)}`)
+                                  : 'p = N/A'}
+                                {variable.p_value !== undefined && variable.p_value < 0.05 && <span className="text-green-600 ml-1">*</span>}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                                             {(result as any).formula && (
+                         <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                           <h5 className="text-sm font-medium text-gray-700 mb-1">Model Formula:</h5>
+                           <code className="text-xs text-gray-600">{(result as any).formula}</code>
+                         </div>
+                       )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Survival-specific statistics */}
                 {result.survival_data?.group_stats && (
@@ -645,7 +797,31 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
                 </div>
               )}
               
-              <PythonFigureDisplay
+              {/* Multivariate Analysis Forest Plot */}
+              {analysisConfig.type === 'multivariate_analysis' && (result as any).forest_plot ? (
+                <div className="mt-6">
+                  <h4 className="font-semibold text-gray-900 mb-4">Forest Plot</h4>
+                  <div className="bg-white rounded-lg border border-gray-200 p-4">
+                    <img 
+                      src={`data:image/png;base64,${(result as any).forest_plot}`}
+                      alt="Forest Plot"
+                      className="w-full max-w-4xl mx-auto"
+                      style={{ maxHeight: '600px', objectFit: 'contain' }}
+                    />
+                    <div className="mt-4 flex justify-center">
+                      <a
+                        href={`data:image/png;base64,${(result as any).forest_plot}`}
+                        download={`forest_plot_${analysisConfig.outcomeVariable}.png`}
+                        className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download Forest Plot
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <PythonFigureDisplay
                 data={analysisConfig.data}
                 outcomeVariable={analysisConfig.outcomeVariable}
                 groupVariable={analysisConfig.groupVariable}
@@ -658,6 +834,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
                 externalFigureData={currentFigureData}
                 externalCodeParameters={currentCodeParameters}
               />
+              )}
             </motion.div>
 
             {/* Interactive Code Editor */}

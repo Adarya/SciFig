@@ -22,6 +22,7 @@ interface AnalysisSelectionProps {
   groupVariable: string;
   timeVariable?: string;
   eventVariable?: string;
+  predictorVariables?: string[];
   onAnalysisSelected: (config: any) => void;
   onBack: () => void;
   disabled?: boolean;
@@ -36,6 +37,7 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
   groupVariable, 
   timeVariable,
   eventVariable,
+  predictorVariables = [],
   onAnalysisSelected, 
   onBack,
   disabled,
@@ -138,6 +140,40 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
       }
     }
 
+    // Add multivariate analysis if predictor variables are selected
+    if (predictorVariables.length > 0) {
+      let analysisName = 'Multivariate Analysis';
+      let description = `Analyze ${predictorVariables.length} predictor variable${predictorVariables.length > 1 ? 's' : ''} simultaneously`;
+      let effectSize = 'Effect estimates';
+      
+      // Determine model type based on outcome variable
+      if (outcomeType === 'continuous') {
+        analysisName = 'Multiple Linear Regression';
+        description = `Linear regression with ${predictorVariables.length} predictor${predictorVariables.length > 1 ? 's' : ''}`;
+        effectSize = 'Beta coefficients';
+      } else if (outcomeType === 'categorical') {
+        analysisName = 'Logistic Regression';
+        description = `Logistic regression with ${predictorVariables.length} predictor${predictorVariables.length > 1 ? 's' : ''}`;
+        effectSize = 'Odds ratios';
+      } else if (timeVariable && eventVariable) {
+        analysisName = 'Cox Proportional Hazards';
+        description = `Survival analysis with ${predictorVariables.length} covariate${predictorVariables.length > 1 ? 's' : ''}`;
+        effectSize = 'Hazard ratios';
+      }
+      
+      analyses.push({
+        id: 'multivariate_analysis',
+        name: analysisName,
+        description: description,
+        reason: `${predictorVariables.length} predictor variable${predictorVariables.length > 1 ? 's' : ''} selected`,
+        icon: Target,
+        assumptions: ['Sufficient sample size', 'No multicollinearity'],
+        effectSize: effectSize,
+        recommended: true,
+        isMultivariate: true
+      });
+    }
+
     // Auto-select first recommended analysis
     if (analyses.length > 0 && !selectedAnalysis) {
       setSelectedAnalysis(analyses[0].id);
@@ -182,6 +218,7 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
       });
     }
 
+
     return analyses;
   };
 
@@ -225,6 +262,7 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
       groupVariable,
       timeVariable,
       eventVariable,
+      predictorVariables: selectedAnalysis === 'multivariate_analysis' ? predictorVariables : undefined,
       data: data.data,
       outcomeType,
       groupType
@@ -274,13 +312,7 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
       // Fallback to rule-based system
       const query = naturalLanguageQuery.toLowerCase();
       
-      if (query.includes('multivariate') || query.includes('forest plot')) {
-        if (outcomeType === 'categorical') {
-          setSelectedAnalysis('fisher_exact');
-        } else {
-          setSelectedAnalysis(nGroups === 2 ? 'independent_ttest' : 'one_way_anova');
-        }
-      } else if (query.includes('survival') || query.includes('time') || query.includes('kaplan')) {
+      if (query.includes('survival') || query.includes('time') || query.includes('kaplan')) {
         setSelectedAnalysis('kaplan_meier');
       } else if (query.includes('correlation') || query.includes('association')) {
         if (outcomeType === 'categorical' && groupType === 'categorical') {
@@ -328,7 +360,7 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
               <textarea
                 value={naturalLanguageQuery}
                 onChange={(e) => setNaturalLanguageQuery(e.target.value)}
-                placeholder={`e.g., 'I want multivariate analysis with forest plot using ${outcomeVariable}' or 'Compare survival between groups' or 'Show correlation with effect sizes'`}
+                placeholder={`e.g., 'I want multivariate analysis with forest plot using ${outcomeVariable}' or 'Compare survival between groups' or 'Show correlation with effect sizes' or 'Forest plot with multiple predictors'`}
                 className="w-full h-24 border border-gray-300 rounded-lg px-4 py-3 resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <button 

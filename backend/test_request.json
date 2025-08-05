@@ -1,0 +1,15 @@
+{
+  "data": [
+    {"group": "Control", "outcome": 10.5},
+    {"group": "Control", "outcome": 12.3},
+    {"group": "Control", "outcome": 9.8},
+    {"group": "Treatment", "outcome": 15.2},
+    {"group": "Treatment", "outcome": 16.1},
+    {"group": "Treatment", "outcome": 14.7}
+  ],
+  "outcome_variable": "outcome",
+  "group_variable": "group",
+  "analysis_type": "independent_ttest",
+  "journal_style": "nature"
+}
+EOF < /dev/null

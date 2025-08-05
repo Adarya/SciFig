@@ -40,6 +40,7 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, o
   const [groupVariable, setGroupVariable] = useState<string>('');
   const [timeVariable, setTimeVariable] = useState<string>('');
   const [eventVariable, setEventVariable] = useState<string>('');
+  const [predictorVariables, setPredictorVariables] = useState<string[]>([]);
   const [analysisConfig, setAnalysisConfig] = useState<any>(null);
   const [analysisCount, setAnalysisCount] = useState(0);
 
@@ -109,11 +110,12 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, o
     handleNext();
   };
 
-  const handlePreviewNext = (outcomeVar: string, groupVar: string, timeVar?: string, eventVar?: string) => {
+  const handlePreviewNext = (outcomeVar: string, groupVar: string, timeVar?: string, eventVar?: string, predictorVars?: string[]) => {
     setOutcomeVariable(outcomeVar);
     setGroupVariable(groupVar);
     setTimeVariable(timeVar || '');
     setEventVariable(eventVar || '');
+    setPredictorVariables(predictorVars || []);
     handleNext();
   };
 
@@ -196,6 +198,7 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, o
             groupVariable={groupVariable}
             timeVariable={timeVariable}
             eventVariable={eventVariable}
+            predictorVariables={predictorVariables}
             onAnalysisSelected={handleAnalysisSelected}
             onBack={handleBack}
           />

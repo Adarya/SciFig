@@ -20,6 +20,14 @@ import io
 import json
 from publication_viz_engine import PublicationVizEngine
 
+# Advanced statistical modeling imports
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from lifelines import CoxPHFitter
+import warnings
+warnings.filterwarnings('ignore')
+
 app = FastAPI(title="SciFig AI Statistical Engine", version="1.0.0")
 
 # Add CORS middleware
@@ -39,6 +47,15 @@ class AnalysisRequest(BaseModel):
     time_variable: Optional[str] = None
     event_variable: Optional[str] = None
 
+class MultivariateAnalysisRequest(BaseModel):
+    data: List[Dict[str, Any]]
+    outcome_variable: str
+    predictor_variables: List[str]  # Multiple covariates
+    analysis_type: str = "multivariate_analysis"
+    time_variable: Optional[str] = None  # For survival analysis
+    event_variable: Optional[str] = None  # For survival analysis
+    model_type: Optional[str] = None  # 'logistic', 'linear', 'cox' - auto-detect if None
+
 class StatisticalResult(BaseModel):
     test_name: str
     statistic: float
@@ -50,6 +67,263 @@ class StatisticalResult(BaseModel):
     assumptions_met: bool
     sample_sizes: Dict[str, int]
     descriptive_stats: Dict[str, Any]
+
+# =====================================
+# Multivariate Analysis Functions
+# =====================================
+
+def perform_logistic_regression(df: pd.DataFrame, outcome_var: str, predictor_vars: List[str]) -> Dict[str, Any]:
+    """Perform logistic regression analysis"""
+    # Prepare data
+    clean_df = df[predictor_vars + [outcome_var]].dropna().copy()
+    
+    # Check if outcome is binary
+    unique_outcomes = clean_df[outcome_var].unique()
+    if len(unique_outcomes) != 2:
+        raise ValueError(f"Logistic regression requires binary outcome. Found {len(unique_outcomes)} unique values.")
+    
+    # Convert outcome to 0/1 if needed
+    outcome_mapping = {unique_outcomes[0]: 0, unique_outcomes[1]: 1}
+    clean_df[outcome_var + '_binary'] = clean_df[outcome_var].map(outcome_mapping)
+    
+    # Convert categorical variables to dummy variables
+    categorical_vars = []
+    numeric_vars = []
+    
+    for var in predictor_vars:
+        if pd.api.types.is_numeric_dtype(clean_df[var]):
+            numeric_vars.append(var)
+        else:
+            categorical_vars.append(var)
+    
+    # Create dummy variables for categorical predictors
+    if categorical_vars:
+        dummy_df = pd.get_dummies(clean_df[categorical_vars], prefix=categorical_vars, drop_first=True)
+        clean_df = pd.concat([clean_df[numeric_vars + [outcome_var + '_binary']], dummy_df], axis=1)
+        predictor_vars_expanded = numeric_vars + list(dummy_df.columns)
+    else:
+        predictor_vars_expanded = numeric_vars
+    
+    # Prepare formula
+    formula = f"{outcome_var}_binary ~ " + " + ".join(predictor_vars_expanded)
+    
+    try:
+        # Fit logistic regression
+        model = smf.logit(formula, data=clean_df).fit(disp=0)
+        
+        # Extract results
+        results = []
+        for var in predictor_vars_expanded:
+            if var in model.params.index:
+                coef = model.params[var]
+                odds_ratio = np.exp(coef)
+                ci_lower, ci_upper = np.exp(model.conf_int().loc[var])
+                p_value = model.pvalues[var]
+                
+                results.append({
+                    'variable': var,
+                    'coefficient': coef,
+                    'odds_ratio': odds_ratio,
+                    'ci_lower': ci_lower,
+                    'ci_upper': ci_upper,
+                    'p_value': p_value,
+                    'effect_measure': 'Odds Ratio'
+                })
+        
+        return {
+            'model_type': 'logistic_regression',
+            'results': results,
+            'model_summary': {
+                'n_obs': int(model.nobs),
+                'aic': float(model.aic),
+                'bic': float(model.bic),
+                'pseudo_r2': float(model.prsquared)
+            },
+            'formula': formula
+        }
+        
+    except Exception as e:
+        raise ValueError(f"Logistic regression failed: {str(e)}")
+
+def perform_linear_regression(df: pd.DataFrame, outcome_var: str, predictor_vars: List[str]) -> Dict[str, Any]:
+    """Perform linear regression analysis"""
+    # Prepare data
+    clean_df = df[predictor_vars + [outcome_var]].dropna().copy()
+    
+    # Convert categorical variables to dummy variables
+    categorical_vars = []
+    numeric_vars = []
+    
+    for var in predictor_vars:
+        if pd.api.types.is_numeric_dtype(clean_df[var]):
+            numeric_vars.append(var)
+        else:
+            categorical_vars.append(var)
+    
+    # Create dummy variables for categorical predictors
+    if categorical_vars:
+        dummy_df = pd.get_dummies(clean_df[categorical_vars], prefix=categorical_vars, drop_first=True)
+        clean_df = pd.concat([clean_df[numeric_vars + [outcome_var]], dummy_df], axis=1)
+        predictor_vars_expanded = numeric_vars + list(dummy_df.columns)
+    else:
+        predictor_vars_expanded = numeric_vars
+    
+    # Prepare formula
+    formula = f"{outcome_var} ~ " + " + ".join(predictor_vars_expanded)
+    
+    try:
+        # Fit linear regression
+        model = smf.ols(formula, data=clean_df).fit()
+        
+        # Extract results
+        results = []
+        for var in predictor_vars_expanded:
+            if var in model.params.index:
+                coef = model.params[var]
+                ci_lower, ci_upper = model.conf_int().loc[var]
+                p_value = model.pvalues[var]
+                
+                results.append({
+                    'variable': var,
+                    'coefficient': coef,
+                    'odds_ratio': coef,  # For consistency in forest plot
+                    'ci_lower': ci_lower,
+                    'ci_upper': ci_upper,
+                    'p_value': p_value,
+                    'effect_measure': 'Beta Coefficient'
+                })
+        
+        return {
+            'model_type': 'linear_regression',
+            'results': results,
+            'model_summary': {
+                'n_obs': int(model.nobs),
+                'r_squared': float(model.rsquared),
+                'adj_r_squared': float(model.rsquared_adj),
+                'f_statistic': float(model.fvalue),
+                'f_pvalue': float(model.f_pvalue)
+            },
+            'formula': formula
+        }
+        
+    except Exception as e:
+        raise ValueError(f"Linear regression failed: {str(e)}")
+
+def perform_cox_regression(df: pd.DataFrame, outcome_var: str, time_var: str, predictor_vars: List[str]) -> Dict[str, Any]:
+    """Perform Cox proportional hazards regression"""
+    # Filter out time and event variables from predictors to avoid duplicate columns
+    filtered_predictors = [var for var in predictor_vars if var not in [outcome_var, time_var]]
+    
+    if len(filtered_predictors) == 0:
+        raise ValueError("No valid predictors remaining after filtering time/event variables")
+    
+    # Prepare data
+    required_vars = filtered_predictors + [outcome_var, time_var]
+    clean_df = df[required_vars].dropna().copy()
+    
+    # Handle categorical variables - encode them as dummy variables
+    categorical_vars = []
+    numeric_vars = []
+    
+    for var in filtered_predictors:
+        if pd.api.types.is_numeric_dtype(clean_df[var]):
+            numeric_vars.append(var)
+        else:
+            categorical_vars.append(var)
+    
+    # Create dummy variables for categorical predictors
+    if categorical_vars:
+        dummy_df = pd.get_dummies(clean_df[categorical_vars], prefix=categorical_vars, drop_first=True)
+        # Ensure no duplicate column names by only including outcome/time vars once
+        model_df = pd.concat([clean_df[numeric_vars], dummy_df, clean_df[[outcome_var, time_var]]], axis=1)
+        predictor_vars_expanded = numeric_vars + list(dummy_df.columns)
+    else:
+        model_df = clean_df[numeric_vars + [outcome_var, time_var]].copy()
+        predictor_vars_expanded = numeric_vars
+    
+    try:
+        # Initialize Cox model
+        cph = CoxPHFitter()
+        
+        # Fit the model
+        cph.fit(model_df, duration_col=time_var, event_col=outcome_var)
+        
+        # Extract results
+        results = []
+        for var in predictor_vars_expanded:
+            if var in cph.params_.index:
+                coef = cph.params_[var]
+                hazard_ratio = np.exp(coef)
+                
+                # Handle different column naming conventions in lifelines
+                ci_cols = cph.confidence_intervals_.columns
+                
+                if 'coef lower 95%' in ci_cols:
+                    ci_lower = np.exp(cph.confidence_intervals_.loc[var, 'coef lower 95%'])
+                    ci_upper = np.exp(cph.confidence_intervals_.loc[var, 'coef upper 95%'])
+                elif 'lower 0.95' in ci_cols:
+                    ci_lower = np.exp(cph.confidence_intervals_.loc[var, 'lower 0.95'])
+                    ci_upper = np.exp(cph.confidence_intervals_.loc[var, 'upper 0.95'])
+                else:
+                    # Fallback to first and second columns
+                    ci_lower = np.exp(cph.confidence_intervals_.loc[var].iloc[0])
+                    ci_upper = np.exp(cph.confidence_intervals_.loc[var].iloc[1])
+                
+                p_value = cph.summary.loc[var, 'p']
+                
+                results.append({
+                    'variable': var,
+                    'coefficient': coef,
+                    'odds_ratio': hazard_ratio,  # Actually hazard ratio
+                    'ci_lower': ci_lower,
+                    'ci_upper': ci_upper,
+                    'p_value': p_value,
+                    'effect_measure': 'Hazard Ratio'
+                })
+        
+        return {
+            'model_type': 'cox_regression',
+            'results': results,
+            'model_summary': {
+                'n_obs': int(cph.event_observed.sum()),
+                'n_events': int(cph.event_observed.sum()),
+                'concordance': float(cph.concordance_index_),
+                'log_likelihood': float(cph.log_likelihood_)
+            },
+            'duration_col': time_var,
+            'event_col': outcome_var
+        }
+        
+    except Exception as e:
+        print(f"DEBUG: Cox regression error details: {str(e)}")
+        print(f"DEBUG: Clean dataframe shape: {clean_df.shape}")
+        print(f"DEBUG: Clean dataframe columns: {list(clean_df.columns)}")
+        print(f"DEBUG: Sample of data:")
+        print(clean_df.head())
+        raise ValueError(f"Cox regression failed: {str(e)}")
+
+def auto_detect_model_type(df: pd.DataFrame, outcome_var: str, time_var: Optional[str] = None, 
+                          event_var: Optional[str] = None) -> str:
+    """Automatically detect the appropriate model type based on outcome variable"""
+    
+    # If we have time and event variables, use Cox regression
+    if time_var and event_var:
+        return 'cox'
+    
+    # Check outcome variable type
+    outcome_data = df[outcome_var].dropna()
+    unique_values = outcome_data.nunique()
+    
+    # If binary outcome, use logistic regression
+    if unique_values == 2:
+        return 'logistic'
+    
+    # If continuous outcome, use linear regression
+    if pd.api.types.is_numeric_dtype(outcome_data):
+        return 'linear'
+    
+    # Default to logistic for categorical outcomes
+    return 'logistic'
 
 @app.get("/")
 async def root():
@@ -89,6 +363,86 @@ async def analyze_data(request: AnalysisRequest):
             raise HTTPException(status_code=400, detail=f"Unsupported analysis type: {request.analysis_type}")
             
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/analyze_multivariate")
+async def analyze_multivariate(request: MultivariateAnalysisRequest):
+    """Perform multivariate statistical analysis with forest plot visualization"""
+    try:
+        # Convert to DataFrame
+        df = pd.DataFrame(request.data)
+        
+        # Clean the data - use set to avoid duplicate column names
+        required_vars = [request.outcome_variable] + request.predictor_variables
+        if request.time_variable:
+            required_vars.append(request.time_variable)
+        if request.event_variable:
+            required_vars.append(request.event_variable)
+            
+        # Remove duplicates while preserving order
+        required_vars = list(dict.fromkeys(required_vars))
+            
+        df = df[required_vars].dropna()
+        
+        if len(df) < 10:  # Need more data for multivariate analysis
+            raise HTTPException(status_code=400, detail="Insufficient data for multivariate analysis (minimum 10 observations)")
+        
+        # Auto-detect model type if not specified
+        model_type = request.model_type
+        if not model_type:
+            model_type = auto_detect_model_type(df, request.outcome_variable, 
+                                              request.time_variable, request.event_variable)
+        
+        print(f"DEBUG: Using model type: {model_type}")
+        
+        # Perform appropriate multivariate analysis
+        if model_type == 'logistic':
+            analysis_results = perform_logistic_regression(df, request.outcome_variable, request.predictor_variables)
+        elif model_type == 'linear':
+            analysis_results = perform_linear_regression(df, request.outcome_variable, request.predictor_variables)
+        elif model_type == 'cox':
+            if not request.time_variable or not request.event_variable:
+                raise HTTPException(status_code=400, detail="Cox regression requires time and event variables")
+            analysis_results = perform_cox_regression(df, request.event_variable, request.time_variable, request.predictor_variables)
+        else:
+            raise HTTPException(status_code=400, detail=f"Unsupported model type: {model_type}")
+        
+        # Prepare forest plot data
+        forest_data = []
+        for result in analysis_results['results']:
+            forest_data.append({
+                'name': result['variable'],
+                'effect': result['odds_ratio'],  # Could be OR, HR, or beta coefficient
+                'ci_lower': result['ci_lower'],
+                'ci_upper': result['ci_upper'],
+                'p_value': result['p_value'],
+                'effect_measure': result['effect_measure']
+            })
+        
+        # Generate forest plot
+        engine = PublicationVizEngine(style='nature')
+        forest_plot_b64 = engine.create_multivariate_forest_plot(
+            forest_data, 
+            title=f"Multivariate {analysis_results['model_type'].replace('_', ' ').title()}",
+            effect_measure=forest_data[0]['effect_measure'] if forest_data else 'Effect Size'
+        )
+        
+        return {
+            "analysis_type": "multivariate_analysis",
+            "model_type": analysis_results['model_type'],
+            "results": analysis_results['results'],
+            "model_summary": analysis_results['model_summary'],
+            "forest_plot": forest_plot_b64,
+            "sample_size": len(df),
+            "formula": analysis_results.get('formula', ''),
+            "message": f"Multivariate analysis completed using {model_type} regression"
+        }
+        
+    except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"ERROR in analyze_multivariate: {str(e)}")
+        print(f"ERROR traceback: {error_traceback}")
         raise HTTPException(status_code=500, detail=str(e))
 
 def perform_ttest(df: pd.DataFrame, outcome_var: str, group_var: str) -> StatisticalResult:
@@ -553,6 +907,30 @@ async def generate_display_figure(request: DisplayFigureRequest):
                 title=request.custom_labels.get('title') if request.custom_labels else "Contingency Table",
                 custom_labels=request.custom_labels
             )
+            
+        elif request.analysis_type == "multivariate_analysis":
+            # For multivariate analysis, we need multiple predictors
+            # Extract predictor variables from the data (excluding outcome, time, and event variables)
+            excluded_vars = {request.outcome_variable, request.time_variable, request.event_variable, request.group_variable}
+            predictor_vars = [col for col in df.columns if col not in excluded_vars and col]
+            
+            # Filter out ID columns and non-meaningful predictors
+            predictor_vars = [col for col in predictor_vars if not col.lower().endswith('_id') and not col.lower().startswith('patient')]
+            
+            print(f"DEBUG: Filtered predictor variables: {predictor_vars}")
+            
+            # Create multivariate analysis request
+            mv_request = MultivariateAnalysisRequest(
+                data=request.data,
+                outcome_variable=request.outcome_variable,
+                predictor_variables=predictor_vars,
+                time_variable=request.time_variable,
+                event_variable=request.event_variable
+            )
+            
+            # Perform multivariate analysis (this will return forest plot)
+            mv_result = await analyze_multivariate(mv_request)
+            figure_b64 = mv_result["forest_plot"]
             
         else:
             # Default visualization - box plot
