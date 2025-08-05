@@ -159,3 +159,8 @@ config.local.json
 *.tmp
 *.temp
 backend/scifig_env/
+
+# Backend test files
+backend/test_*.json
+backend/*test*.py
+backend/tests/

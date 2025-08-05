@@ -275,8 +275,18 @@ class PublicationVizEngine:
         fig_width, fig_height = self._calculate_figure_size('box', n_groups)
         fig, ax = plt.subplots(figsize=(fig_width, fig_height), dpi=self.style_config['dpi'])
         
-        # Prepare data for plotting
-        group_data = [data[data[group_var] == group][outcome_var].dropna() for group in groups]
+        # Prepare data for plotting - ensure numeric conversion
+        group_data = []
+        for group in groups:
+            group_subset = data[data[group_var] == group][outcome_var].dropna()
+            # Convert to numeric, handling any string values
+            try:
+                group_numeric = pd.to_numeric(group_subset, errors='coerce').dropna()
+                if len(group_numeric) == 0:
+                    raise ValueError(f"No valid numeric data found for group '{group}' in variable '{outcome_var}'")
+                group_data.append(group_numeric)
+            except Exception as e:
+                raise ValueError(f"Cannot convert outcome variable '{outcome_var}' to numeric for group '{group}': {str(e)}")
         
         # Create box plot with publication styling
         box_plot = ax.boxplot(group_data, labels=groups, patch_artist=True,

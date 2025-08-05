@@ -451,8 +451,21 @@ def perform_ttest(df: pd.DataFrame, outcome_var: str, group_var: str) -> Statist
     if len(groups) != 2:
         raise ValueError("T-test requires exactly 2 groups")
     
-    group1_data = df[df[group_var] == groups[0]][outcome_var].astype(float)
-    group2_data = df[df[group_var] == groups[1]][outcome_var].astype(float)
+    # Convert outcome variable to numeric, handling string data
+    try:
+        outcome_numeric = pd.to_numeric(df[outcome_var], errors='coerce')
+        df_clean = df.copy()
+        df_clean[outcome_var] = outcome_numeric
+        df_clean = df_clean.dropna(subset=[outcome_var])
+        
+        if len(df_clean) == 0:
+            raise ValueError(f"No valid numeric data found in outcome variable '{outcome_var}'")
+            
+    except Exception as e:
+        raise ValueError(f"Cannot convert outcome variable '{outcome_var}' to numeric: {str(e)}")
+    
+    group1_data = df_clean[df_clean[group_var] == groups[0]][outcome_var].astype(float)
+    group2_data = df_clean[df_clean[group_var] == groups[1]][outcome_var].astype(float)
     
     # Perform t-test
     statistic, p_value = stats.ttest_ind(group1_data, group2_data)
