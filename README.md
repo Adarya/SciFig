@@ -23,83 +23,88 @@ SciFig AI is a full-stack platform that transforms how medical researchers creat
 - **🔒 HIPAA Compliant** - Secure data handling for medical research
 - **⚡ Backend Processing** - Fast, scalable statistical computing with Python/FastAPI
 
-## 🚀 Quick Start (Updated January 2025)
+## 🚀 Quick Start
 
 ### Prerequisites
 
 **System Requirements:**
-- **Node.js** 18+ with npm
-- **Python** 3.11+ 
-- **Conda** (strongly recommended)
+- **Node.js** 18+ (with npm or yarn)
+- **Python** 3.8+ 
 - **Git**
 
-**Optional (for advanced setup):**
-- Docker & Docker Compose
-- PostgreSQL 15+
-- Redis 7+
+### 🎯 Simple Setup (2 Terminal Process)
 
-### 🎯 Recommended Setup (Current Working Configuration)
-
-This setup gives you both frontend and backend running locally with all functionality working.
+Get SciFig AI running locally in under 5 minutes:
 
 #### 1. Clone Repository
 ```bash
-git clone https://github.com/your-username/scifig-ai.git
-cd scifig-ai
+git clone https://github.com/Adarya/SciFig.git
+cd SciFig
 ```
 
 #### 2. Frontend Setup
 ```bash
-# Install dependencies (may show some warnings - these are normal)
-npm install
+# Install dependencies using Yarn (recommended) or npm
+yarn install
+# OR: npm install
 
-# Build the frontend
-npm run build
+# If you encounter npm permission issues, use:
+# yarn install
 ```
 
-#### 3. Backend Setup with Conda
+#### 3. Backend Setup
 ```bash
 cd backend
 
-# Create conda environment with all dependencies
-conda env create -f environment.yml
+# Install Python dependencies
+pip install -r requirements.txt
 
-# Install additional dependencies that may be missing
-/opt/anaconda3/envs/scifig-ai/bin/pip install PyJWT python-jose[cryptography] supabase lifelines
-
-# Verify all dependencies work
-/opt/anaconda3/envs/scifig-ai/bin/python -c "import jwt; import supabase; import lifelines; from publication_viz_engine import PublicationVizEngine; print('✅ All dependencies working')"
+# Verify installation works
+python -c "from publication_viz_engine import PublicationVizEngine; print('✅ Backend ready')"
 ```
 
-#### 4. Start Services
+#### 4. Start Both Services
 
-**Terminal 1: Start Frontend Server (port 5173)**
+**Terminal 1: Frontend (port 5173)**
 ```bash
 # From project root
-npm run dev
-# Frontend will be at: http://localhost:5173
+yarn dev
+# OR: npm run dev
+
+# ✅ Frontend will be at: http://localhost:5173
 ```
 
-**Terminal 2: Start Backend Server (port 8000)**
+**Terminal 2: Backend (port 8000)**
 ```bash
 # From backend directory
 cd backend
-export PYTHONPATH=$(pwd)
 python simple_statistical_server.py
-# Backend will be at: http://localhost:8000
+
+# ✅ Backend will be at: http://localhost:8000
 ```
 
 #### 5. Verify Everything Works ✅
 
-**Frontend Tests:**
-- **Frontend**: http://localhost:5173 (SciFig AI interface)
+**Access the Application:**
+- **🌐 Frontend**: http://localhost:5173 (SciFig AI interface)
+- **🔧 Backend API**: http://localhost:8000/health (should show: `{"status":"healthy","service":"Statistical Engine"}`)
 
-**Backend Tests:**
-- **Health Check**: `curl http://localhost:8000/health` 
-  - Should return: `{"status":"healthy","service":"Statistical Engine"}`
-- **Statistical Analysis**: `curl -X POST http://localhost:8000/analyze -H "Content-Type: application/json" -d '{"data": [{"group": "A", "value": 10}, {"group": "A", "value": 12}, {"group": "B", "value": 15}, {"group": "B", "value": 17}], "outcome_variable": "value", "group_variable": "group", "analysis_type": "independent_ttest"}'`
-  - Should return statistical analysis results
-- **Figure Generation**: Backend supports publication-ready figure generation endpoints
+**Quick Test:**
+```bash
+# Test backend health
+curl http://localhost:8000/health
+
+# Test statistical analysis
+curl -X POST http://localhost:8000/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"data": [{"group": "A", "value": 10}, {"group": "A", "value": 12}, {"group": "B", "value": 15}, {"group": "B", "value": 17}], "outcome_variable": "value", "group_variable": "group", "analysis_type": "independent_ttest"}'
+```
+
+🎉 **You're ready to go!** Upload your data and start creating publication-ready statistical analyses.
+
+---
+
+## 📋 What's Included
 
 ### 🆕 Current Features (Simple Statistical Server)
 
@@ -125,24 +130,26 @@ pip install fastapi uvicorn pandas numpy scipy matplotlib seaborn statsmodels li
 
 **Common Issues & Solutions:**
 
-1. **Backend server not starting**
+1. **Frontend won't start (`vite: command not found`)**
+   - Install dependencies: `yarn install` or `npm install`
+   - Use Yarn if npm has permission issues: `yarn install`
+
+2. **Backend import errors**
+   - Install dependencies: `cd backend && pip install -r requirements.txt`
+   - For specific missing packages: `pip install package-name`
+
+3. **Port already in use**
+   - Kill existing processes: `pkill -f python` or `pkill -f node`
+   - Check what's using the port: `lsof -ti:8000` or `lsof -ti:5173`
+
+4. **npm permission errors**
+   - Switch to Yarn: `yarn install` and `yarn dev`
+   - Or fix npm permissions: `sudo chown -R $(whoami) ~/.npm`
+
+5. **Backend server won't start**
    - Make sure you're in the `backend/` directory
-   - Use the correct command: `python simple_statistical_server.py`
-   - Install missing dependencies: `pip install -r requirements.txt`
-
-2. **"ModuleNotFoundError: No module named 'jwt'"**
-   - Install missing dependencies: `/opt/anaconda3/envs/scifig-ai/bin/pip install PyJWT python-jose[cryptography]`
-
-3. **"ModuleNotFoundError: No module named 'lifelines'"**  
-   - Install survival analysis package: `/opt/anaconda3/envs/scifig-ai/bin/pip install lifelines`
-
-4. **Database warnings are normal**
-   - The "degraded" status is expected in development
-   - Core statistical and API functionality works regardless
-
-5. **Port already in use**
-   - Kill existing processes: `pkill -f python`
-   - Try different ports if needed
+   - Check Python version: `python --version` (needs 3.8+)
+   - Verify requirements: `python -c "import fastapi, pandas, numpy; print('✅ Core dependencies OK')"`
 
 ## 🧪 Testing the Server
 
