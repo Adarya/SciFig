@@ -164,3 +164,4 @@ backend/scifig_env/
 backend/test_*.json
 backend/*test*.py
 backend/tests/
+# Legacy Files\nbackend/legacy/
