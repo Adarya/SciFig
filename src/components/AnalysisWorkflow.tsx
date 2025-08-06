@@ -35,9 +35,9 @@ interface AnalysisWorkflowProps {
 type WorkflowStep = 'upload' | 'preview' | 'analysis' | 'results';
 
 const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, onLogin, project }) => {
-  const [currentStep, setCurrentStep] = useState<WorkflowStep>('upload');
+  const [currentStep, setCurrentStep] = useState<'upload' | 'preview' | 'analysis' | 'results'>('upload');
   const [uploadedData, setUploadedData] = useState<ParsedData | null>(null);
-  const [uploadedDataset, setUploadedDataset] = useState<Dataset | null>(null);
+  const [uploadedDataset, setUploadedDataset] = useState<any>(null);
   const [outcomeVariable, setOutcomeVariable] = useState<string>('');
   const [groupVariable, setGroupVariable] = useState<string>('');
   const [timeVariable, setTimeVariable] = useState<string>('');
@@ -49,7 +49,7 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, o
   const [analysisProgressId, setAnalysisProgressId] = useState<string | null>(null);
 
   // State to track if we're loading an existing project
-  const [loadingProject, setLoadingProject] = useState(false);
+  const [loadingProject, setLoadingProject] = useState(!!project); // Start loading if project is provided
 
   // Free tier limits
   const FREE_ANALYSIS_LIMIT = 3;
@@ -60,35 +60,34 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, o
   useEffect(() => {
     if (project && user) {
       loadProjectData();
+    } else if (!project) {
+      // If no project is provided, reset loading state
+      setLoadingProject(false);
     }
   }, [project, user]);
 
   const loadProjectData = async () => {
     if (!project || !user) return;
-
+    
     setLoadingProject(true);
     try {
       console.log('Loading project data for project:', project.id);
-      
-      // Check if project has analyses
       const analysesResponse = await apiClient.analyses.list(1, 1, project.id);
       console.log('Analyses response:', analysesResponse);
-      
+
       if (analysesResponse.analyses.length > 0) {
         const latestAnalysis = analysesResponse.analyses[0];
         console.log('Found latest analysis:', latestAnalysis);
         
-        // If we have results, show them directly
         if (latestAnalysis.results && Object.keys(latestAnalysis.results).length > 0) {
           console.log('Analysis has results, navigating to results view');
-          // Set up the analysis config to match the existing analysis
           setAnalysisConfig({
             ...latestAnalysis.parameters,
             type: latestAnalysis.analysis_type,
             dataset_id: latestAnalysis.dataset_id
           });
           
-          // Try to load the dataset as well
+          // Try to load the dataset if it's not a client-side one
           if (latestAnalysis.dataset_id && !latestAnalysis.dataset_id.startsWith('client_')) {
             try {
               const dataset = await apiClient.files.getDataset(latestAnalysis.dataset_id);
@@ -98,22 +97,20 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, o
             }
           }
           
-          // Navigate directly to results
           setCurrentStep('results');
         } else {
           console.log('Analysis exists but no results, continuing from analysis step');
-          // Analysis exists but no results, continue where left off
           setAnalysisConfig(latestAnalysis.parameters);
           setCurrentStep('analysis');
         }
       } else {
         console.log('No analyses found for this project, starting from upload');
-        // If no analyses, stay on upload step
+        // Keep the default 'upload' step
       }
     } catch (error) {
       console.error('Failed to load project data:', error);
-      // Stay on upload step if loading fails
       console.log('Staying on upload step due to error');
+      // Keep the default 'upload' step on error
     } finally {
       setLoadingProject(false);
     }
@@ -321,6 +318,25 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, o
       onLogin('signup');
     }
   };
+
+  // Show loading screen while project data is being loaded
+  if (loadingProject) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full mx-4">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">
+              Loading Project
+            </h2>
+            <p className="text-gray-600">
+              {project ? `Loading "${project.name}"...` : 'Preparing analysis workspace...'}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const renderStepContent = () => {
     switch (currentStep) {

@@ -279,15 +279,24 @@ class ApiClient {
       const response = await fetch(url, config);
       
       if (!response.ok) {
-        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        const errorData = await response.json().catch(() => ({}));
+        logger.error(`API ${method} ${endpoint} failed with status ${response.status}`, errorData);
         
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.detail || errorData.message || errorMessage;
-          logger.apiResponse(method, endpoint, response.status, errorData);
-        } catch {
-          // If can't parse JSON, use status text
-          logger.apiResponse(method, endpoint, response.status, { error: errorMessage });
+        // Handle different error formats
+        let errorMessage = `HTTP ${response.status}`;
+        if (errorData.detail) {
+          if (Array.isArray(errorData.detail)) {
+            // Pydantic validation errors
+            errorMessage = errorData.detail.map((err: any) => 
+              `${err.loc?.join('.') || 'field'}: ${err.msg}`
+            ).join('; ');
+          } else if (typeof errorData.detail === 'string') {
+            errorMessage = errorData.detail;
+          } else {
+            errorMessage = JSON.stringify(errorData.detail);
+          }
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
         }
         
         throw new Error(errorMessage);
