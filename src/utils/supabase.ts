@@ -85,30 +85,55 @@ export const authService = {
     
     if (!user) return null;
 
-    // Get additional user data from profiles table
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
+    try {
+      // Get additional user data from profiles table
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
 
-    return {
-      id: user.id,
-      email: user.email!,
-      name: profile?.name || user.user_metadata?.name || '',
-      subscription_tier: profile?.subscription_tier || 'free',
-      subscription_status: profile?.subscription_status || 'active',
-      trial_ends_at: profile?.trial_ends_at,
-      created_at: user.created_at
-    };
+      // If there's an error or no profile, still return the basic user info
+      if (error) {
+        console.warn('Failed to fetch user profile:', error);
+      }
+
+      return {
+        id: user.id,
+        email: user.email!,
+        name: profile?.name || user.user_metadata?.name || user.user_metadata?.full_name || '',
+        subscription_tier: profile?.subscription_tier || 'free',
+        subscription_status: profile?.subscription_status || 'active',
+        trial_ends_at: profile?.trial_ends_at,
+        created_at: user.created_at
+      };
+    } catch (error) {
+      console.warn('Error fetching user profile, returning basic user info:', error);
+      // Return basic user info even if profile fetch fails
+      return {
+        id: user.id,
+        email: user.email!,
+        name: user.user_metadata?.name || user.user_metadata?.full_name || '',
+        subscription_tier: 'free',
+        subscription_status: 'active',
+        trial_ends_at: undefined,
+        created_at: user.created_at
+      };
+    }
   },
 
   onAuthStateChange(callback: (user: User | null) => void) {
     return supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        const user = await this.getCurrentUser();
-        callback(user);
-      } else {
+      try {
+        if (session?.user) {
+          const user = await this.getCurrentUser();
+          callback(user);
+        } else {
+          callback(null);
+        }
+      } catch (error) {
+        console.warn('Error in auth state change listener:', error);
+        // Still call callback with null to prevent hanging
         callback(null);
       }
     });

@@ -26,11 +26,19 @@ interface ResultsViewProps {
   analysisConfig: any;
   onBack: () => void;
   onNewAnalysis: () => void;
-  // Optional dataset from backend (NEW: integrated from recent improvements)
   dataset?: Dataset;
+  onSaveResults?: (results: any) => Promise<void>;
+  project?: any;
 }
 
-const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNewAnalysis, dataset }) => {
+const ResultsView: React.FC<ResultsViewProps> = ({ 
+  analysisConfig, 
+  onBack, 
+  onNewAnalysis, 
+  dataset, 
+  onSaveResults, 
+  project 
+}) => {
   const [figureStyle, setFigureStyle] = useState<'nature' | 'science' | 'cell' | 'nejm'>('nature');
   const [exportFormat, setExportFormat] = useState('png');
   const [showEditor, setShowEditor] = useState(false);
@@ -74,6 +82,18 @@ const ResultsView: React.FC<ResultsViewProps> = ({ analysisConfig, onBack, onNew
       runClientSideAnalysis();
     }
   }, []);
+
+  // Save analysis results when they become available
+  useEffect(() => {
+    if (analysisResults && onSaveResults && !isAnalyzing && !error) {
+      const result = analysisResults.final_result;
+      if (result && !('error' in result)) {
+        onSaveResults(analysisResults).catch(err => {
+          console.error('Failed to save analysis results:', err);
+        });
+      }
+    }
+  }, [analysisResults, onSaveResults, isAnalyzing, error]);
 
   // Multivariate analysis handler
   const runMultivariateAnalysis = async (config: any): Promise<AnalysisWorkflow> => {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Upload, 
@@ -13,26 +13,28 @@ import {
   Zap,
   Crown,
   AlertTriangle,
-  Loader
+  Loader 
 } from 'lucide-react';
 import FileUpload from './FileUpload';
 import DataPreview from './DataPreview';
 import AnalysisSelection from './AnalysisSelection';
 import ResultsView from './ResultsView';
-import { ParsedData } from '../utils/csvParser';
-import { Dataset } from '../services/apiClient';
-import { User } from '../utils/supabase';
 import AnalysisProgressIndicator from './AnalysisProgressIndicator';
+import { User } from '../utils/supabase';
+import { Dataset } from '../services/apiClient';
+import { ParsedData } from '../utils/csvParser';
+import { apiClient } from '../services/apiClient';
 
 interface AnalysisWorkflowProps {
   onNavigate: NavigateFunction;
   user?: User | null;
   onLogin?: (mode?: 'signin' | 'signup') => void;
+  project?: any;
 }
 
 type WorkflowStep = 'upload' | 'preview' | 'analysis' | 'results';
 
-const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, onLogin }) => {
+const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, onLogin, project }) => {
   const [currentStep, setCurrentStep] = useState<WorkflowStep>('upload');
   const [uploadedData, setUploadedData] = useState<ParsedData | null>(null);
   const [uploadedDataset, setUploadedDataset] = useState<Dataset | null>(null);
@@ -43,11 +45,79 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, o
   const [predictorVariables, setPredictorVariables] = useState<string[]>([]);
   const [analysisConfig, setAnalysisConfig] = useState<any>(null);
   const [analysisCount, setAnalysisCount] = useState(0);
+  const [analysisInProgress, setAnalysisInProgress] = useState(false);
+  const [analysisProgressId, setAnalysisProgressId] = useState<string | null>(null);
+
+  // State to track if we're loading an existing project
+  const [loadingProject, setLoadingProject] = useState(false);
 
   // Free tier limits
-  const FREE_ANALYSIS_LIMIT = 2;
+  const FREE_ANALYSIS_LIMIT = 3;
   const isFreeTier = !user;
   const hasReachedLimit = isFreeTier && analysisCount >= FREE_ANALYSIS_LIMIT;
+
+  // Load existing project data when project prop changes
+  useEffect(() => {
+    if (project && user) {
+      loadProjectData();
+    }
+  }, [project, user]);
+
+  const loadProjectData = async () => {
+    if (!project || !user) return;
+
+    setLoadingProject(true);
+    try {
+      console.log('Loading project data for project:', project.id);
+      
+      // Check if project has analyses
+      const analysesResponse = await apiClient.analyses.list(1, 1, project.id);
+      console.log('Analyses response:', analysesResponse);
+      
+      if (analysesResponse.analyses.length > 0) {
+        const latestAnalysis = analysesResponse.analyses[0];
+        console.log('Found latest analysis:', latestAnalysis);
+        
+        // If we have results, show them directly
+        if (latestAnalysis.results && Object.keys(latestAnalysis.results).length > 0) {
+          console.log('Analysis has results, navigating to results view');
+          // Set up the analysis config to match the existing analysis
+          setAnalysisConfig({
+            ...latestAnalysis.parameters,
+            type: latestAnalysis.analysis_type,
+            dataset_id: latestAnalysis.dataset_id
+          });
+          
+          // Try to load the dataset as well
+          if (latestAnalysis.dataset_id && !latestAnalysis.dataset_id.startsWith('client_')) {
+            try {
+              const dataset = await apiClient.files.getDataset(latestAnalysis.dataset_id);
+              setUploadedDataset(dataset);
+            } catch (err) {
+              console.warn('Could not load dataset:', err);
+            }
+          }
+          
+          // Navigate directly to results
+          setCurrentStep('results');
+        } else {
+          console.log('Analysis exists but no results, continuing from analysis step');
+          // Analysis exists but no results, continue where left off
+          setAnalysisConfig(latestAnalysis.parameters);
+          setCurrentStep('analysis');
+        }
+      } else {
+        console.log('No analyses found for this project, starting from upload');
+        // If no analyses, stay on upload step
+      }
+    } catch (error) {
+      console.error('Failed to load project data:', error);
+      // Stay on upload step if loading fails
+      console.log('Staying on upload step due to error');
+    } finally {
+      setLoadingProject(false);
+    }
+  };
 
   const steps = [
     { id: 'upload', title: 'Upload Data', icon: Upload },
@@ -119,12 +189,10 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, o
     handleNext();
   };
 
-  const [analysisInProgress, setAnalysisInProgress] = useState(false);
-  const [analysisProgressId, setAnalysisProgressId] = useState<string | null>(null);
-
   const handleAnalysisSelected = async (config: any) => {
     if (hasReachedLimit) {
-      return; // Don't process if limit reached
+      handleUpgradeClick();
+      return;
     }
 
     try {
@@ -162,6 +230,89 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, o
       setAnalysisConfig(config);
       setAnalysisCount(prev => prev + 1);
       handleNext();
+    }
+  };
+
+  // Save analysis results to project
+  const saveAnalysisResults = async (results: any) => {
+    console.log('saveAnalysisResults called with:', { user: !!user, project: !!project, results: !!results });
+    if (!user || !project) {
+      console.log('Cannot save analysis - missing user or project');
+      return;
+    }
+
+    try {
+      let datasetId = uploadedDataset?.id;
+      
+      if (!datasetId && uploadedData) {
+        // Generate a valid UUID for client-side data instead of a custom string
+        datasetId = crypto.randomUUID();
+      }
+      
+      if (!datasetId) {
+        console.log('Cannot save analysis - no dataset available');
+        return;
+      }
+
+      const analysisData: any = {
+        name: `${analysisConfig?.type || 'Analysis'} - ${new Date().toLocaleDateString()}`,
+        description: `Analysis results for ${project.name}`,
+        dataset_id: datasetId,
+        analysis_type: analysisConfig?.type || 'statistical_test',
+        parameters: {
+          ...analysisConfig,
+          // Include data metadata if available
+          data_info: uploadedData ? {
+            filename: uploadedData.filename,
+            rows: uploadedData.rows,
+            columns: uploadedData.columns
+          } : null,
+          // Store project info in parameters as backup
+          project_info: {
+            project_id: project.id,
+            project_name: project.name
+          },
+          // Flag to indicate this is client-side data
+          is_client_data: !uploadedDataset
+        },
+        is_public: false
+      };
+
+      // Note: Not setting project_id field due to missing database column
+
+      console.log('Saving analysis with data:', analysisData);
+      const savedAnalysis = await apiClient.analyses.create(analysisData);
+      console.log('Analysis created successfully:', savedAnalysis);
+      
+      // Update the analysis with results
+      if (savedAnalysis.id) {
+        console.log('Updating analysis with results...');
+        await apiClient.analyses.update(savedAnalysis.id, {
+          results: results,
+          figures: {} // TODO: Add figure data if available
+        });
+        console.log('Analysis results updated successfully');
+      }
+
+      console.log('Analysis saved successfully:', savedAnalysis.id);
+      
+      // Show success message to user
+      const successMessage = `Analysis saved successfully! You can find it in project "${project.name}".`;
+      console.log(successMessage);
+      
+    } catch (error) {
+      console.error('Failed to save analysis results:', error);
+      
+      // Try to get more detailed error information
+      if (error instanceof Error) {
+        console.error('Error details:', {
+          message: error.message,
+          stack: error.stack
+        });
+      }
+      
+      // Show user-friendly error message
+      alert(`Failed to save analysis results: ${error instanceof Error ? error.message : 'Unknown error'}. Results are still available in this session.`);
     }
   };
 
@@ -219,6 +370,8 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, o
               setEventVariable('');
             }}
             dataset={uploadedDataset || undefined}
+            onSaveResults={saveAnalysisResults}
+            project={project}
           />
         ) : null;
       default:

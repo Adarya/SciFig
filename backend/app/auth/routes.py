@@ -17,7 +17,8 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
 @router.post("/signup", response_model=UserResponse)
 async def signup(
     user_data: UserCreate,
-    db: Client = Depends(get_db_client)
+    db: Client = Depends(get_db_client),
+    admin_db: Client = Depends(get_admin_db_client)
 ):
     """Register a new user"""
     try:
@@ -39,7 +40,7 @@ async def signup(
                 detail="User registration failed"
             )
         
-        # Create user profile in our custom users table
+        # Create user profile in our custom users table using admin client
         profile_data = {
             'id': auth_response.user.id,
             'email': user_data.email,
@@ -48,7 +49,7 @@ async def signup(
             'role': 'user'
         }
         
-        profile_response = db.table('users').insert(profile_data).execute()
+        profile_response = admin_db.table('users').insert(profile_data).execute()
         user_profile = profile_response.data[0]
         
         return UserResponse(

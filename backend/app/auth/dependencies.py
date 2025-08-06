@@ -8,7 +8,7 @@ from typing import Optional
 import httpx
 
 from ..config.settings import settings
-from ..config.database import get_db_client
+from ..config.database import get_db_client, get_admin_db_client
 from .models import TokenData, UserResponse, UserRole
 
 
@@ -17,7 +17,8 @@ security = HTTPBearer()
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Client = Depends(get_db_client)
+    db: Client = Depends(get_db_client),
+    admin_db: Client = Depends(get_admin_db_client)
 ) -> UserResponse:
     """Get current authenticated user"""
     
@@ -42,7 +43,7 @@ async def get_current_user(
         profile_response = db.table('users').select('*').eq('id', supabase_user.id).execute()
         
         if not profile_response.data:
-            # Create user profile if it doesn't exist
+            # Create user profile if it doesn't exist using admin client
             profile_data = {
                 'id': supabase_user.id,
                 'email': supabase_user.email,
@@ -50,7 +51,7 @@ async def get_current_user(
                 'role': 'user'
             }
             
-            create_response = db.table('users').insert(profile_data).execute()
+            create_response = admin_db.table('users').insert(profile_data).execute()
             user_profile = create_response.data[0]
         else:
             user_profile = profile_response.data[0]

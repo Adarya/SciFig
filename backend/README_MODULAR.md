@@ -119,6 +119,22 @@ The server will:
 - `GET /styles` - Get available journal styles
 - `GET /formats` - Get available output formats
 
+### Projects (`/api/v1/projects`)
+- `GET /` - List user's projects with pagination and search
+- `POST /` - Create a new project
+- `GET /{project_id}` - Get a specific project
+- `PUT /{project_id}` - Update a project
+- `DELETE /{project_id}` - Delete a project
+- `GET /{project_id}/stats` - Get project statistics
+- `GET /{project_id}/analyses` - List analyses for a project
+
+### Analyses (`/api/v1/analyses`)
+- `GET /` - List user's analyses with optional filters
+- `POST /` - Create a new analysis
+- `GET /{analysis_id}` - Get a specific analysis
+- `PUT /{analysis_id}` - Update an analysis
+- `DELETE /{analysis_id}` - Delete an analysis
+
 ## 👥 User Roles
 
 - **Admin**: Full system access, user management
@@ -179,11 +195,24 @@ is_public BOOLEAN DEFAULT false
 metadata JSONB
 ```
 
+### `projects` table
+```sql
+id UUID PRIMARY KEY
+user_id UUID REFERENCES users(id)
+name TEXT NOT NULL
+description TEXT
+study_type TEXT
+is_shared BOOLEAN DEFAULT false
+created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+```
+
 ### `analyses` table
 ```sql
 id UUID PRIMARY KEY
 user_id UUID REFERENCES users(id)
 dataset_id UUID REFERENCES datasets(id)
+project_id UUID REFERENCES projects(id) ON DELETE SET NULL
 analysis_type TEXT NOT NULL
 parameters JSONB NOT NULL
 results JSONB NOT NULL

@@ -1,7 +1,7 @@
 // Type definitions for SciFig application
 
 // Define AppState type for navigation
-declare type AppState = 'landing' | 'dashboard' | 'analysis' | 'figure-analyzer' | 'pricing' | 'admin' | 'kaplan-meier';
+declare type AppState = 'landing' | 'dashboard' | 'analysis' | 'figure-analyzer' | 'pricing' | 'admin' | 'kaplan-meier' | 'projects';
 
 // Define navigation function type that accepts AppState
 declare type NavigateFunction = (view: AppState) => void;

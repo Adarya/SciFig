@@ -104,12 +104,44 @@ class DatabaseManager:
             FOR DELETE USING (auth.uid() = user_id);
         """
         
-        # Analysis results table
+        # Projects table
+        projects_table = """
+        CREATE TABLE IF NOT EXISTS public.projects (
+            id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+            user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            description TEXT,
+            study_type TEXT,
+            is_shared BOOLEAN DEFAULT false,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        """
+        
+        # Projects RLS policies
+        projects_rls = """
+        ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
+        
+        CREATE POLICY "Users can view own projects" ON public.projects
+            FOR SELECT USING (auth.uid() = user_id OR is_shared = true);
+            
+        CREATE POLICY "Users can insert own projects" ON public.projects
+            FOR INSERT WITH CHECK (auth.uid() = user_id);
+            
+        CREATE POLICY "Users can update own projects" ON public.projects
+            FOR UPDATE USING (auth.uid() = user_id);
+            
+        CREATE POLICY "Users can delete own projects" ON public.projects
+            FOR DELETE USING (auth.uid() = user_id);
+        """
+
+        # Analysis results table (updated to include project_id)
         analyses_table = """
         CREATE TABLE IF NOT EXISTS public.analyses (
             id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
             user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
             dataset_id UUID REFERENCES public.datasets(id) ON DELETE CASCADE,
+            project_id UUID REFERENCES public.projects(id) ON DELETE SET NULL,
             analysis_type TEXT NOT NULL,
             parameters JSONB NOT NULL,
             results JSONB NOT NULL,
@@ -163,11 +195,36 @@ class DatabaseManager:
         indexes = """
         CREATE INDEX IF NOT EXISTS idx_datasets_user_id ON public.datasets(user_id);
         CREATE INDEX IF NOT EXISTS idx_datasets_upload_date ON public.datasets(upload_date);
+        CREATE INDEX IF NOT EXISTS idx_projects_user_id ON public.projects(user_id);
+        CREATE INDEX IF NOT EXISTS idx_projects_created_at ON public.projects(created_at);
         CREATE INDEX IF NOT EXISTS idx_analyses_user_id ON public.analyses(user_id);
         CREATE INDEX IF NOT EXISTS idx_analyses_dataset_id ON public.analyses(dataset_id);
+        CREATE INDEX IF NOT EXISTS idx_analyses_project_id ON public.analyses(project_id);
         CREATE INDEX IF NOT EXISTS idx_analyses_created_at ON public.analyses(created_at);
         CREATE INDEX IF NOT EXISTS idx_collaborations_dataset_id ON public.collaborations(dataset_id);
         CREATE INDEX IF NOT EXISTS idx_collaborations_user_id ON public.collaborations(user_id);
+        """
+        
+        # Create profiles view for frontend compatibility
+        profiles_view = """
+        CREATE OR REPLACE VIEW public.profiles AS
+        SELECT 
+            id,
+            email,
+            full_name as name,
+            role,
+            organization,
+            is_active,
+            created_at,
+            updated_at,
+            'free' as subscription_tier,
+            'active' as subscription_status,
+            null as trial_ends_at
+        FROM public.users;
+        
+        -- Grant access to the view
+        GRANT SELECT ON public.profiles TO authenticated;
+        GRANT SELECT ON public.profiles TO anon;
         """
         
         # Execute all SQL statements
@@ -176,11 +233,14 @@ class DatabaseManager:
             users_rls, 
             datasets_table,
             datasets_rls,
+            projects_table,
+            projects_rls,
             analyses_table,
             analyses_rls,
             collaborations_table,
             collaborations_rls,
-            indexes
+            indexes,
+            profiles_view
         ]
         
         for sql in sql_statements:

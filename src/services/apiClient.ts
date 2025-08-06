@@ -2,6 +2,7 @@
 // Centralized service for backend communication
 
 import { supabase } from '../utils/supabase';
+import { logger } from '../utils/logger';
 
 // Backend URL configuration
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -105,6 +106,21 @@ export interface Figure {
   created_at: string;
 }
 
+export interface BackendAnalysis {
+  id: string;
+  name?: string;
+  description?: string;
+  project_id?: string;
+  dataset_id: string;
+  user_id: string;
+  analysis_type: string;
+  parameters: Record<string, any>;
+  results: Record<string, any>;
+  figures: Record<string, any>;
+  created_at: string;
+  is_public: boolean;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -198,21 +214,42 @@ export interface TestRecommendation {
 
 class ApiClient {
   private baseURL: string;
+  private backendToken: string | null = null;
   
   constructor() {
     this.baseURL = `${API_BASE_URL}${API_PREFIX}`;
   }
 
+  // Method to set backend token
+  setBackendToken(token: string | null) {
+    this.backendToken = token;
+  }
+
   // Private helper to get auth headers
   private async getAuthHeaders(): Promise<Record<string, string>> {
-    const { data: { session } } = await supabase.auth.getSession();
-    
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
 
-    if (session?.access_token) {
-      headers['Authorization'] = `Bearer ${session.access_token}`;
+    // Use backend token if available, otherwise fall back to Supabase session
+    if (this.backendToken) {
+      headers['Authorization'] = `Bearer ${this.backendToken}`;
+      logger.debug('Backend token added to headers', undefined, 'API');
+    } else {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      logger.debug('Getting auth headers', { 
+        hasSession: !!session,
+        hasToken: !!session?.access_token,
+        userId: session?.user?.id 
+      }, 'API');
+
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+        logger.debug('Auth token added to headers', undefined, 'API');
+      } else {
+        logger.warn('No auth token available - user may not be logged in', undefined, 'API');
+      }
     }
 
     return headers;
@@ -224,6 +261,7 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
+    const method = options.method || 'GET';
     const headers = await this.getAuthHeaders();
 
     const config: RequestInit = {
@@ -234,6 +272,9 @@ class ApiClient {
       },
     };
 
+    // Log the outgoing request
+    logger.apiRequest(method, endpoint, options.body ? JSON.parse(options.body as string) : undefined);
+
     try {
       const response = await fetch(url, config);
       
@@ -243,8 +284,10 @@ class ApiClient {
         try {
           const errorData = await response.json();
           errorMessage = errorData.detail || errorData.message || errorMessage;
+          logger.apiResponse(method, endpoint, response.status, errorData);
         } catch {
           // If can't parse JSON, use status text
+          logger.apiResponse(method, endpoint, response.status, { error: errorMessage });
         }
         
         throw new Error(errorMessage);
@@ -252,16 +295,21 @@ class ApiClient {
 
       // Handle empty responses (204 No Content)
       if (response.status === 204) {
+        logger.apiResponse(method, endpoint, response.status);
         return {} as T;
       }
 
       const data = await response.json();
+      logger.apiResponse(method, endpoint, response.status, data);
       return data;
     } catch (error) {
       if (error instanceof Error) {
+        logger.error(`API request failed: ${method} ${endpoint}`, error, 'API');
         throw error;
       }
-      throw new Error('Network request failed');
+      const networkError = new Error('Network request failed');
+      logger.error(`Network error: ${method} ${endpoint}`, networkError, 'API');
+      throw networkError;
     }
   }
 
@@ -295,7 +343,12 @@ class ApiClient {
     },
 
     checkSession: async (): Promise<{ valid: boolean; user?: User }> => {
-      return this.request<{ valid: boolean; user?: User }>('/auth/check');
+      try {
+        const user = await this.request<User>('/auth/check');
+        return { valid: true, user };
+      } catch (error) {
+        return { valid: false };
+      }
     },
 
     getLimits: async (): Promise<{
@@ -604,6 +657,67 @@ class ApiClient {
       last_updated: string;
     }> => {
       return this.request(`/projects/${projectId}/stats`);
+    },
+  };
+
+  // =====================================
+  // Analyses Service
+  // =====================================
+
+  analyses = {
+    list: async (page: number = 1, limit: number = 50, projectId?: string, analysisType?: string): Promise<{
+      analyses: BackendAnalysis[];
+      total: number;
+      page: number;
+      limit: number;
+      has_next: boolean;
+      has_prev: boolean;
+    }> => {
+      const params = new URLSearchParams();
+      params.append('page', page.toString());
+      params.append('limit', limit.toString());
+      if (projectId) params.append('project_id', projectId);
+      if (analysisType) params.append('analysis_type', analysisType);
+      
+      return this.request(`/analyses?${params.toString()}`);
+    },
+
+    create: async (data: {
+      name: string;
+      description?: string;
+      project_id?: string;
+      dataset_id: string;
+      analysis_type: string;
+      parameters: Record<string, any>;
+      is_public?: boolean;
+    }): Promise<BackendAnalysis> => {
+      return this.request<BackendAnalysis>('/analyses', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    get: async (analysisId: string): Promise<BackendAnalysis> => {
+      return this.request<BackendAnalysis>(`/analyses/${analysisId}`);
+    },
+
+    update: async (analysisId: string, updates: {
+      name?: string;
+      description?: string;
+      is_public?: boolean;
+      results?: any;
+      figures?: any;
+    }): Promise<BackendAnalysis> => {
+      return this.request<BackendAnalysis>(`/analyses/${analysisId}`, {
+        method: 'PUT',
+        body: JSON.stringify(updates),
+      });
+    },
+
+    delete: async (analysisId: string): Promise<void> => {
+      return this.request<void>(`/analyses/${analysisId}`, {
+        method: 'DELETE',
+      });
     },
   };
 

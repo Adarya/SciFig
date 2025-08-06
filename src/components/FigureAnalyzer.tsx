@@ -24,9 +24,10 @@ interface FigureAnalyzerProps {
   onNavigate: NavigateFunction;
   user?: User | null;
   onLogin?: (mode?: 'signin' | 'signup') => void;
+  project?: any;
 }
 
-const FigureAnalyzer: React.FC<FigureAnalyzerProps> = ({ onNavigate, user, onLogin }) => {
+const FigureAnalyzer: React.FC<FigureAnalyzerProps> = ({ onNavigate, user, onLogin, project }) => {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);

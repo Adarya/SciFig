@@ -7,8 +7,9 @@ import FigureAnalyzer from './components/FigureAnalyzer';
 import PricingPage from './components/PricingPage';
 import AuthModal from './components/AuthModal';
 import AdminPage from './components/AdminPage';
-// Import the original auth hook for now until we fully migrate
-import { useAuth } from './hooks/useAuth';
+// Use the auth provider instead of the direct hook
+import { useAuth } from './providers/ApiAuthProvider';
+import { logger } from './utils/logger';
 
 // Using the AppState type defined in src/types/app.d.ts
 
@@ -16,7 +17,18 @@ function App() {
   const [currentView, setCurrentView] = useState<AppState>('landing');
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>('signin');
+  const [currentProject, setCurrentProject] = useState<any>(null); // Added for project context
   const { user, loading, signOut } = useAuth();
+
+  // Debug loading state
+  useEffect(() => {
+    logger.info('App state changed', { 
+      currentView, 
+      hasUser: !!user, 
+      loading, 
+      userEmail: user?.email 
+    }, 'App');
+  }, [currentView, user, loading]);
 
   // Check for admin access via URL parameter
   useEffect(() => {
@@ -61,6 +73,10 @@ function App() {
     }
   };
 
+  const handleSetProject = (project: any) => {
+    setCurrentProject(project);
+  };
+
   const renderCurrentView = () => {
     switch (currentView) {
       case 'landing':
@@ -76,7 +92,8 @@ function App() {
           <Dashboard 
             user={user} 
             onNavigate={setCurrentView} 
-            onLogout={handleLogout} 
+            onLogout={handleLogout}
+            onSetProject={handleSetProject}
           />
         ) : (
           <LandingPage 
@@ -87,10 +104,20 @@ function App() {
         );
       case 'analysis':
         // Allow analysis workflow without authentication - just like figure analyzer
-        return <AnalysisWorkflow onNavigate={setCurrentView} user={user} onLogin={handleLogin} />;
+        return <AnalysisWorkflow 
+          onNavigate={setCurrentView} 
+          user={user} 
+          onLogin={handleLogin}
+          project={currentProject}
+        />;
       case 'figure-analyzer':
         // Allow figure analyzer without authentication
-        return <FigureAnalyzer onNavigate={setCurrentView} user={user} onLogin={handleLogin} />;
+        return <FigureAnalyzer 
+          onNavigate={setCurrentView} 
+          user={user} 
+          onLogin={handleLogin}
+          project={currentProject}
+        />;
       case 'pricing':
         return (
           <PricingPage 
@@ -113,6 +140,7 @@ function App() {
   };
 
   if (loading && currentView !== 'admin') {
+    logger.debug('App showing loading screen', { loading, currentView }, 'App');
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
         <div className="text-center">

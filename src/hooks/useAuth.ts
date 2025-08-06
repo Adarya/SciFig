@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { authService, User, AuthState } from '../utils/supabase';
+import { logger } from '../utils/logger';
 
 export const useAuth = (): AuthState & {
   signIn: (email: string, password: string) => Promise<void>;
@@ -15,17 +16,38 @@ export const useAuth = (): AuthState & {
   });
 
   useEffect(() => {
+    logger.debug('useAuth initializing', undefined, 'useAuth');
+    
+    let isMounted = true;
+    
     // Get initial user
-    authService.getCurrentUser().then(user => {
-      setState(prev => ({ ...prev, user, loading: false }));
-    });
+    authService.getCurrentUser()
+      .then(user => {
+        if (isMounted) {
+          logger.info('Initial user check complete', { hasUser: !!user, email: user?.email }, 'useAuth');
+          setState(prev => ({ ...prev, user, loading: false }));
+        }
+      })
+      .catch(error => {
+        if (isMounted) {
+          logger.error('Failed to get initial user', error, 'useAuth');
+          setState(prev => ({ ...prev, user: null, loading: false, error: error.message }));
+        }
+      });
 
     // Listen for auth changes
     const { data: { subscription } } = authService.onAuthStateChange((user) => {
-      setState(prev => ({ ...prev, user, loading: false }));
+      if (isMounted) {
+        logger.info('Auth state changed', { hasUser: !!user, email: user?.email }, 'useAuth');
+        setState(prev => ({ ...prev, user, loading: false }));
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      logger.debug('useAuth cleanup', undefined, 'useAuth');
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {

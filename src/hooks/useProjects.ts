@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { apiClient, Project } from '../services/apiClient';
 import { useAuth } from '../providers/ApiAuthProvider';
+import { logger } from '../utils/logger';
 
 interface UseProjectsResult {
   projects: Project[];
@@ -22,8 +23,10 @@ export const useProjects = (): UseProjectsResult => {
   // Fetch projects on mount and when user changes
   useEffect(() => {
     if (user) {
+      logger.debug('User authenticated, fetching projects', { userId: user.id }, 'useProjects');
       refreshProjects();
     } else {
+      logger.debug('No authenticated user, clearing projects', undefined, 'useProjects');
       // Clear projects when user logs out
       setProjects([]);
       setLoading(false);
@@ -42,8 +45,10 @@ export const useProjects = (): UseProjectsResult => {
 
     try {
       const response = await apiClient.projects.list();
+      logger.info('Projects fetched successfully', { count: response.projects.length }, 'useProjects');
       setProjects(response.projects);
     } catch (err) {
+      logger.error('Failed to fetch projects', err, 'useProjects');
       setError(err instanceof Error ? err.message : 'Failed to fetch projects');
     } finally {
       setLoading(false);
@@ -52,7 +57,10 @@ export const useProjects = (): UseProjectsResult => {
 
   // Create a new project
   const createProject = async (name: string, description?: string): Promise<Project> => {
+    logger.debug('createProject called', { name, description, hasUser: !!user }, 'useProjects');
+    
     if (!user) {
+      logger.error('Cannot create project - user not authenticated', undefined, 'useProjects');
       throw new Error('User not authenticated');
     }
 
@@ -60,17 +68,21 @@ export const useProjects = (): UseProjectsResult => {
     setError(null);
 
     try {
+      logger.info('Creating project via API', { name, description }, 'useProjects');
       const newProject = await apiClient.projects.create({
         name,
         description,
         is_shared: false
       });
       
+      logger.info('Project created successfully', { projectId: newProject.id, name: newProject.name }, 'useProjects');
+      
       // Update local state
       setProjects(prev => [...prev, newProject]);
       
       return newProject;
     } catch (err) {
+      logger.error('Failed to create project', err, 'useProjects');
       setError(err instanceof Error ? err.message : 'Failed to create project');
       throw err;
     } finally {

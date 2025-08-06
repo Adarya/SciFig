@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { apiClient, User, AuthResponse } from '../services/apiClient';
 import { supabase } from '../utils/supabase';
 
@@ -15,18 +15,25 @@ export const useApiAuth = () => {
     error: null
   });
 
+  // Add ref to track if session check is in progress
+  const checkingSession = useRef(false);
+  // Store backend token separately
+
   useEffect(() => {
     // Check if user is authenticated on mount
     checkSession();
 
     // Listen for Supabase auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event) => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        // When signed in or token refreshed, sync with backend
-        checkSession();
-      } else if (event === 'SIGNED_OUT') {
-        // Clear user when signed out
-        setState(prev => ({ ...prev, user: null }));
+      // Only check session if not already checking
+      if (!checkingSession.current) {
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          // When signed in or token refreshed, sync with backend
+          checkSession();
+        } else if (event === 'SIGNED_OUT') {
+          // Clear user when signed out
+          setState(prev => ({ ...prev, user: null, loading: false }));
+        }
       }
     });
 
@@ -34,7 +41,14 @@ export const useApiAuth = () => {
   }, []);
 
   const checkSession = async () => {
+    // Prevent concurrent session checks
+    if (checkingSession.current) {
+      return;
+    }
+    
+    checkingSession.current = true;
     setState(prev => ({ ...prev, loading: true, error: null }));
+    
     try {
       // Get Supabase session
       const { data: { session } } = await supabase.auth.getSession();
@@ -44,12 +58,27 @@ export const useApiAuth = () => {
         return;
       }
 
-      // Verify session with backend
-      const { valid, user } = await apiClient.auth.checkSession();
+      // Verify session with backend with timeout
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Backend auth timeout')), 5000)
+      );
       
-      if (valid && user) {
-        setState({ user, loading: false, error: null });
-      } else {
+      try {
+        const result = await Promise.race([
+          apiClient.auth.checkSession(),
+          timeoutPromise
+        ]) as { valid: boolean; user?: User };
+        
+        if (result.valid && result.user) {
+          setState({ user: result.user, loading: false, error: null });
+        } else {
+          // Backend validation failed, but user might still be authenticated with Supabase
+          // Don't block the app, just set user to null but allow continued use
+          setState({ user: null, loading: false, error: null });
+        }
+      } catch (backendError) {
+        // Backend is down or auth failed - don't block the user
+        console.warn('Backend auth check failed, continuing with Supabase-only auth:', backendError);
         setState({ user: null, loading: false, error: null });
       }
     } catch (error) {
@@ -59,6 +88,8 @@ export const useApiAuth = () => {
         loading: false, 
         error: error instanceof Error ? error.message : 'Session verification failed' 
       }));
+    } finally {
+      checkingSession.current = false;
     }
   };
 
