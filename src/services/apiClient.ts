@@ -164,6 +164,78 @@ export interface DataProfile {
   columns: string[];
 }
 
+// Template Library interfaces
+export interface FigureTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  plot_type: string;
+  required_variables: string[];
+  optional_variables: string[];
+  default_settings: Record<string, any>;
+  journal_style: string;
+  example_data_shape: string;
+  tags: string[];
+  thumbnail?: string;
+}
+
+export interface TemplateLibraryResponse {
+  templates: FigureTemplate[];
+  categories: string[];
+  total_count: number;
+}
+
+export interface TemplateSearchResponse {
+  query: string;
+  templates: FigureTemplate[];
+  count: number;
+}
+
+export interface TemplateRecommendationResponse {
+  data_characteristics: Record<string, any>;
+  recommendations: FigureTemplate[];
+  analysis_goal?: string;
+  count: number;
+}
+
+// AI Plot Suggestions interfaces
+export interface PlotSuggestion {
+  plot_type: string;
+  template_id?: string;
+  score: number;
+  rationale: string[];
+  required_variables: string[];
+  optional_variables: string[];
+  suitability_factors: Record<string, number>;
+  template_info?: FigureTemplate;
+}
+
+export interface AIPlotSuggestionResponse {
+  data_characteristics: {
+    total_rows: number;
+    total_columns: number;
+    num_numeric_cols: number;
+    num_categorical_cols: number;
+    has_time_column: boolean;
+    has_event_column: boolean;
+    has_binary_outcome: boolean;
+    suitable_for_correlation: boolean;
+    likely_expression_data: boolean;
+    num_groups: number;
+  };
+  analysis_goal?: string;
+  suggestions: PlotSuggestion[];
+  total_suggestions: number;
+  ai_confidence: 'high' | 'moderate' | 'low';
+}
+
+export interface AnalysisGoalInfo {
+  id: string;
+  name: string;
+  description: string;
+}
+
 export interface AssumptionResult {
   test: string;
   passed: boolean;
@@ -727,6 +799,60 @@ class ApiClient {
       return this.request<void>(`/analyses/${analysisId}`, {
         method: 'DELETE',
       });
+    },
+  };
+
+  // =====================================
+  // Templates Service
+  // =====================================
+
+  templates = {
+    getAll: async (): Promise<TemplateLibraryResponse> => {
+      return this.request<TemplateLibraryResponse>('/visualization/templates');
+    },
+
+    getByCategory: async (category: string): Promise<{
+      category: string;
+      templates: FigureTemplate[];
+      count: number;
+    }> => {
+      return this.request(`/visualization/templates/category/${category}`);
+    },
+
+    getById: async (templateId: string): Promise<FigureTemplate> => {
+      return this.request<FigureTemplate>(`/visualization/templates/${templateId}`);
+    },
+
+    search: async (query: string): Promise<TemplateSearchResponse> => {
+      return this.request<TemplateSearchResponse>(`/visualization/templates/search/${encodeURIComponent(query)}`);
+    },
+
+    recommend: async (data: any[], analysisGoal?: string): Promise<TemplateRecommendationResponse> => {
+      return this.request<TemplateRecommendationResponse>('/visualization/templates/recommend', {
+        method: 'POST',
+        body: JSON.stringify({ data, analysis_goal: analysisGoal }),
+      });
+    },
+  };
+
+  // =====================================
+  // AI Plot Suggestions Service  
+  // =====================================
+
+  ai = {
+    suggestPlots: async (data: any[], analysisGoal?: string, topK: number = 5): Promise<AIPlotSuggestionResponse> => {
+      return this.request<AIPlotSuggestionResponse>('/visualization/ai/suggest_plots', {
+        method: 'POST',
+        body: JSON.stringify({ 
+          data, 
+          analysis_goal: analysisGoal,
+          top_k: topK 
+        }),
+      });
+    },
+
+    getAnalysisGoals: async (): Promise<{ analysis_goals: AnalysisGoalInfo[] }> => {
+      return this.request<{ analysis_goals: AnalysisGoalInfo[] }>('/visualization/ai/analysis_goals');
     },
   };
 

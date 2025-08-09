@@ -168,6 +168,60 @@ const ResultsView: React.FC<ResultsViewProps> = ({
     }
   };
 
+  // Template-based generation handler
+  const runTemplateBasedGeneration = async (config: any): Promise<AnalysisWorkflow> => {
+    try {
+      console.log('🎨 Generating template-based visualization:', config.template.name);
+      
+      // Create a mock analysis workflow for template-based generation
+      const mockResult: AnalysisWorkflow = {
+        data_profile: {
+          sample_size: config.data.length,
+          outcome_variable: config.outcomeVariable,
+          outcome_type: config.outcomeType || 'continuous',
+          group_variable: config.groupVariable,
+          n_groups: undefined,
+          time_variable: config.timeVariable,
+          event_variable: config.eventVariable,
+          is_paired: false,
+          variables: []
+        },
+        recommendation: {
+          primary: config.template.name,
+          alternative: config.template.plot_type
+        },
+        validation: {
+          issues: [],
+          warnings: []
+        },
+        final_selection: config.template.plot_type,
+        final_result: {
+          test_name: config.template.name,
+          statistic: { template_based: true },
+          p_value: undefined, // Templates don't have p-values
+          effect_size: undefined,
+          confidence_interval: undefined,
+          summary: `Template-based ${config.template.plot_type} visualization`,
+          assumptions_met: true,
+          sample_sizes: { total: config.data.length },
+          descriptive_stats: {},
+          // Add template-specific information
+          template_info: {
+            template: config.template,
+            plot_type: config.template.plot_type,
+            settings: config.template.default_settings,
+            journal_style: config.template.journal_style
+          }
+        } as any
+      };
+      
+      return mockResult;
+    } catch (error) {
+      console.error('Template-based generation error:', error);
+      throw error;
+    }
+  };
+
   const runClientSideAnalysis = async () => {
     setIsClientAnalyzing(true);
     setClientError(null);
@@ -178,7 +232,10 @@ const ResultsView: React.FC<ResultsViewProps> = ({
       let results: AnalysisWorkflow;
       
       // Handle different analysis types
-      if (analysisConfig.type === 'multivariate_analysis') {
+      if (analysisConfig.type === 'template_based') {
+        // Handle template-based visualization - skip statistical analysis
+        results = await runTemplateBasedGeneration(analysisConfig);
+      } else if (analysisConfig.type === 'multivariate_analysis') {
         // Handle multivariate analysis with direct backend call
         results = await runMultivariateAnalysis(analysisConfig);
       } else if (['chi_square', 'fisher_exact', 'kaplan_meier'].includes(analysisConfig.type)) {
@@ -853,6 +910,11 @@ const ResultsView: React.FC<ResultsViewProps> = ({
                 onFigureGenerated={handleFigureGenerated}
                 externalFigureData={currentFigureData}
                 externalCodeParameters={currentCodeParameters}
+                templateInfo={
+                  analysisConfig.type === 'template_based' && (result as any).template_info 
+                    ? (result as any).template_info 
+                    : undefined
+                }
               />
               )}
             </motion.div>

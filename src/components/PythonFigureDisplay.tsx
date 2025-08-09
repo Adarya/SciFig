@@ -17,6 +17,11 @@ interface PythonFigureDisplayProps {
   onFigureGenerated?: (figureData: string, codeParams?: any) => void;
   externalFigureData?: string | null; // New prop for external figure updates
   externalCodeParameters?: any; // Code parameters from code editor
+  templateInfo?: { // New prop for template-based generation
+    template: any;
+    plot_type: string;
+    settings: any;
+  };
 }
 
 interface FigureResponse {
@@ -39,7 +44,8 @@ export const PythonFigureDisplay: React.FC<PythonFigureDisplayProps> = ({
   journalStyle = 'nature',
   onFigureGenerated,
   externalFigureData,
-  externalCodeParameters
+  externalCodeParameters,
+  templateInfo
 }) => {
   const [figureData, setFigureData] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -48,7 +54,7 @@ export const PythonFigureDisplay: React.FC<PythonFigureDisplayProps> = ({
 
   useEffect(() => {
     generateFigure();
-  }, [data, outcomeVariable, groupVariable, analysisType, timeVariable, eventVariable, customLabels, journalStyle]);
+  }, [data, outcomeVariable, groupVariable, analysisType, timeVariable, eventVariable, customLabels, journalStyle, templateInfo]);
 
   // Effect to handle external figure updates
   useEffect(() => {
@@ -85,22 +91,113 @@ export const PythonFigureDisplay: React.FC<PythonFigureDisplayProps> = ({
         return cleanedRow;
       });
 
-      const response = await fetch('http://localhost:8000/generate_display_figure', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          data: cleanedData,
-          outcome_variable: outcomeVariable,
-          group_variable: groupVariable,
-          analysis_type: analysisType,
-          time_variable: timeVariable,
-          event_variable: eventVariable,
-          custom_labels: customLabels,
-          journal_style: journalStyle
-        }),
-      });
+      let response: Response;
+
+      // Handle template-based generation with specific endpoints
+      if (templateInfo && analysisType === 'template_based') {
+        const plotType = templateInfo.plot_type;
+        const settings = templateInfo.settings || {};
+        
+        console.log(`🎨 Generating template-based ${plotType} plot`);
+        
+        // Choose appropriate endpoint based on plot type
+        if (plotType === 'volcano') {
+          response = await fetch('http://localhost:8000/api/v1/visualization/generate_volcano_plot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              data: cleanedData,
+              log2fc_col: settings.log2fc_col || 'log2FoldChange',
+              pvalue_col: settings.pvalue_col || 'pvalue',
+              gene_col: settings.gene_col,
+              fc_threshold: settings.fc_threshold || 1.0,
+              pvalue_threshold: settings.pvalue_threshold || 0.05,
+              title: customLabels?.title || settings.title,
+              highlight_genes: settings.highlight_genes,
+              format: 'png',
+              journal_style: journalStyle
+            })
+          });
+        } else if (plotType === 'heatmap') {
+          response = await fetch('http://localhost:8000/api/v1/visualization/generate_heatmap', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              data: cleanedData,
+              title: customLabels?.title || settings.title,
+              custom_labels: customLabels,
+              cmap: settings.cmap || 'RdBu_r',
+              show_values: settings.show_values !== false,
+              cluster_rows: settings.cluster_rows || false,
+              cluster_cols: settings.cluster_cols || false,
+              format: 'png',
+              journal_style: journalStyle
+            })
+          });
+        } else if (plotType === 'violin') {
+          response = await fetch('http://localhost:8000/api/v1/visualization/generate_violin_plot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              data: cleanedData,
+              outcome_variable: outcomeVariable,
+              group_variable: groupVariable,
+              title: customLabels?.title || settings.title,
+              custom_labels: customLabels,
+              show_box: settings.show_box !== false,
+              show_points: settings.show_points !== false,
+              show_stats: settings.show_stats !== false,
+              format: 'png',
+              journal_style: journalStyle
+            })
+          });
+        } else if (plotType === 'roc_curve') {
+          response = await fetch('http://localhost:8000/api/v1/visualization/generate_roc_curve', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              y_true: cleanedData.map(row => row[outcomeVariable]),
+              y_scores: cleanedData.map(row => row[groupVariable]),
+              title: customLabels?.title || settings.title,
+              format: 'png',
+              journal_style: journalStyle
+            })
+          });
+        } else {
+          // Fallback to display figure for unsupported template types
+          console.warn(`Template plot type '${plotType}' not directly supported, using display figure`);
+          response = await fetch('http://localhost:8000/generate_display_figure', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              data: cleanedData,
+              outcome_variable: outcomeVariable,
+              group_variable: groupVariable,
+              analysis_type: 'independent_ttest', // Safe fallback
+              time_variable: timeVariable,
+              event_variable: eventVariable,
+              custom_labels: customLabels,
+              journal_style: journalStyle
+            })
+          });
+        }
+      } else {
+        // Standard analysis-based generation
+        response = await fetch('http://localhost:8000/generate_display_figure', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            data: cleanedData,
+            outcome_variable: outcomeVariable,
+            group_variable: groupVariable,
+            analysis_type: analysisType,
+            time_variable: timeVariable,
+            event_variable: eventVariable,
+            custom_labels: customLabels,
+            journal_style: journalStyle
+          })
+        });
+      }
 
       if (!response.ok) {
         const errorData = await response.json();

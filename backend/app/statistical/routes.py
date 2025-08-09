@@ -9,7 +9,7 @@ from .services import StatisticalAnalysisService
 from ..auth.dependencies import get_current_active_user, get_optional_user
 from ..auth.models import UserResponse
 
-router = APIRouter(prefix="/api/v1/statistical", tags=["statistical analysis"])
+router = APIRouter(prefix="/statistical", tags=["statistical analysis"])
 
 
 @router.post("/analyze", response_model=StatisticalResult)

@@ -96,4 +96,76 @@ class PublicationVizService:
             time_var=time_var,
             event_var=event_var,
             format_type=format_type
+        )
+    
+    def create_heatmap(self, data: pd.DataFrame, 
+                      x_var: str = None, y_var: str = None, value_var: str = None,
+                      title: str = None, custom_labels: Dict[str, str] = None,
+                      cmap: str = 'RdBu_r', show_values: bool = True,
+                      cluster_rows: bool = False, cluster_cols: bool = False,
+                      format_type: str = 'png') -> str:
+        """Create publication-quality heatmap with optional clustering"""
+        return self.engine.create_heatmap(
+            data=data,
+            x_var=x_var,
+            y_var=y_var,
+            value_var=value_var,
+            title=title,
+            custom_labels=custom_labels,
+            cmap=cmap,
+            show_values=show_values,
+            cluster_rows=cluster_rows,
+            cluster_cols=cluster_cols,
+            format_type=format_type
+        )
+    
+    def create_volcano_plot(self, data: pd.DataFrame,
+                           log2fc_col: str, pvalue_col: str,
+                           gene_col: str = None, 
+                           fc_threshold: float = 1.0,
+                           pvalue_threshold: float = 0.05,
+                           title: str = None,
+                           highlight_genes: List[str] = None,
+                           format_type: str = 'png') -> str:
+        """Create volcano plot for differential expression analysis"""
+        return self.engine.create_volcano_plot(
+            data=data,
+            log2fc_col=log2fc_col,
+            pvalue_col=pvalue_col,
+            gene_col=gene_col,
+            fc_threshold=fc_threshold,
+            pvalue_threshold=pvalue_threshold,
+            title=title,
+            highlight_genes=highlight_genes,
+            format_type=format_type
+        )
+    
+    def create_violin_plot(self, data: pd.DataFrame,
+                          outcome_var: str, group_var: str,
+                          title: str = None, custom_labels: Dict[str, str] = None,
+                          show_box: bool = True, show_points: bool = True,
+                          show_stats: bool = True, format_type: str = 'png') -> str:
+        """Create violin plot with optional box plot overlay and statistical annotations"""
+        return self.engine.create_violin_plot(
+            data=data,
+            outcome_var=outcome_var,
+            group_var=group_var,
+            title=title,
+            custom_labels=custom_labels,
+            show_box=show_box,
+            show_points=show_points,
+            show_stats=show_stats,
+            format_type=format_type
+        )
+    
+    def create_roc_curve(self, y_true: Any = None, y_scores: Any = None,
+                        title: str = None, multi_class: Dict[str, tuple] = None,
+                        format_type: str = 'png') -> str:
+        """Create ROC curve with AUC calculation"""
+        return self.engine.create_roc_curve(
+            y_true=y_true,
+            y_scores=y_scores,
+            title=title,
+            multi_class=multi_class,
+            format_type=format_type
         ) 

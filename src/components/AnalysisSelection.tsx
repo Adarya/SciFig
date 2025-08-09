@@ -11,10 +11,15 @@ import {
   Activity,
   PieChart,
   Clock,
-  Users
+  Users,
+  BookOpen,
+  Sparkles,
+  Layout
 } from 'lucide-react';
 import { ParsedData } from '../utils/csvParser';
 import { GeminiAnalysisAI } from '../utils/geminiAI';
+import TemplateLibrary from './TemplateLibrary';
+import { apiClient, FigureTemplate, PlotSuggestion } from '../services/apiClient';
 
 interface AnalysisSelectionProps {
   data: ParsedData;
@@ -49,6 +54,12 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
   const [naturalLanguageQuery, setNaturalLanguageQuery] = useState('');
   const [isAIProcessing, setIsAIProcessing] = useState(false);
   const [aiRecommendation, setAiRecommendation] = useState<string | null>(null);
+  
+  // Template and AI suggestion state
+  const [showTemplateLibrary, setShowTemplateLibrary] = useState(false);
+  const [aiPlotSuggestions, setAiPlotSuggestions] = useState<PlotSuggestion[]>([]);
+  const [isLoadingAISuggestions, setIsLoadingAISuggestions] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<FigureTemplate | null>(null);
 
   // Determine data types and characteristics
   const getColumnType = (columnName: string): 'categorical' | 'continuous' => {
@@ -269,6 +280,38 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
     });
   };
 
+  // Handler for template selection - just store the template for future use
+  const handleTemplateSelect = (template: FigureTemplate) => {
+    try {
+      setSelectedTemplate(template);
+      setShowTemplateLibrary(false);
+      
+      console.log(`✅ Template selected: ${template.name} (${template.plot_type}) - Available for future integration`);
+      
+      // Template is now selected but doesn't affect the current analysis flow
+      // This will be integrated later when the template system is ready
+      
+    } catch (error) {
+      console.error('Error handling template selection:', error);
+    }
+  };
+
+  // Handler for AI plot suggestions
+  const loadAIPlotSuggestions = async () => {
+    if (!data.data || data.data.length === 0) return;
+    
+    setIsLoadingAISuggestions(true);
+    try {
+      const response = await apiClient.ai.suggestPlots(data.data, undefined, 5);
+      setAiPlotSuggestions(response.suggestions);
+      console.log('AI Plot Suggestions loaded:', response);
+    } catch (error) {
+      console.error('Failed to load AI plot suggestions:', error);
+    } finally {
+      setIsLoadingAISuggestions(false);
+    }
+  };
+
   const handleNaturalLanguageSubmit = async () => {
     if (!naturalLanguageQuery.trim()) {
       alert('Please enter a research question first.');
@@ -414,6 +457,128 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
               )}
             </div>
           </motion.div>
+
+          {/* Quick Access Tools */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
+          >
+            <div className="flex items-center space-x-3 mb-4">
+              <Layout className="h-6 w-6 text-purple-600" />
+              <h3 className="text-lg font-semibold text-gray-900">🚀 Quick Access Tools</h3>
+              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">New Features</span>
+            </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              {/* Template Library */}
+              <button
+                onClick={() => setShowTemplateLibrary(true)}
+                className="p-4 border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-all text-left group"
+              >
+                <div className="flex items-center space-x-3 mb-2">
+                  <BookOpen className="h-5 w-5 text-purple-600" />
+                  <h4 className="font-medium text-gray-900 group-hover:text-purple-700">Template Library</h4>
+                </div>
+                <p className="text-sm text-gray-600">Browse pre-configured templates for publication-ready figures</p>
+                {selectedTemplate && (
+                  <div className="mt-2 text-xs text-purple-700 bg-purple-50 px-2 py-1 rounded">
+                    ✓ Template saved: {selectedTemplate.name} (for future integration)
+                  </div>
+                )}
+              </button>
+
+              {/* AI Plot Suggestions */}
+              <button
+                onClick={loadAIPlotSuggestions}
+                disabled={isLoadingAISuggestions}
+                className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-all text-left group disabled:opacity-50"
+              >
+                <div className="flex items-center space-x-3 mb-2">
+                  <Sparkles className="h-5 w-5 text-blue-600" />
+                  <h4 className="font-medium text-gray-900 group-hover:text-blue-700">
+                    {isLoadingAISuggestions ? 'Loading...' : '🤖 Intelligent Plot Recommendations'}
+                  </h4>
+                </div>
+                <p className="text-sm text-gray-600">Advanced AI analyzes your data to suggest optimal visualizations</p>
+                {aiPlotSuggestions.length > 0 && (
+                  <div className="mt-2 text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded">
+                    {aiPlotSuggestions.length} suggestions available
+                  </div>
+                )}
+              </button>
+            </div>
+          </motion.div>
+
+          {/* AI Plot Suggestions Display */}
+          {aiPlotSuggestions.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 p-6"
+            >
+              <div className="flex items-center space-x-3 mb-4">
+                <Sparkles className="h-6 w-6 text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-900">🤖 Intelligent Plot Recommendations</h3>
+                <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full">AI-Powered</span>
+              </div>
+              <div className="space-y-3">
+                {aiPlotSuggestions.slice(0, 3).map((suggestion, index) => (
+                  <div
+                    key={index}
+                    className="bg-white rounded-lg p-4 border border-blue-200 hover:border-blue-300 transition-colors cursor-pointer"
+                    onClick={() => {
+                      // Map plot type to analysis if possible
+                      const plotAnalysisMapping: { [key: string]: string } = {
+                        'violin_plot': 'independent_ttest',
+                        'boxplot': 'one_way_anova',
+                        'survival_plot': 'kaplan_meier',
+                        'heatmap': 'correlation_analysis',
+                        'volcano_plot': 'volcano_plot',
+                        'scatter_plot': 'correlation_analysis'
+                      };
+                      const mappedAnalysis = plotAnalysisMapping[suggestion.plot_type];
+                      if (mappedAnalysis) {
+                        setSelectedAnalysis(mappedAnalysis);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium text-gray-900 capitalize">
+                        {suggestion.plot_type.replace(/_/g, ' ')}
+                      </h4>
+                      <div className="flex items-center space-x-2">
+                        <div className={`w-2 h-2 rounded-full ${
+                          suggestion.score > 0.8 ? 'bg-green-500' :
+                          suggestion.score > 0.6 ? 'bg-yellow-500' : 'bg-gray-400'
+                        }`}></div>
+                        <span className="text-xs text-gray-500">
+                          {Math.round(suggestion.score * 100)}% confidence
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-sm text-gray-600 mb-2">
+                      {suggestion.rationale.slice(0, 2).map((reason, idx) => (
+                        <div key={idx} className="flex items-start space-x-1">
+                          <span className="text-blue-600 mt-1">•</span>
+                          <span>{reason}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {suggestion.required_variables.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {suggestion.required_variables.map(variable => (
+                          <span key={variable} className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs">
+                            {variable.replace(/_/g, ' ')}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
 
           {/* Recommended Analyses */}
           {recommendedAnalyses.length > 0 && (
@@ -575,9 +740,9 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
             transition={{ delay: 0.2 }}
             className="bg-gradient-to-br from-green-50 to-blue-50 rounded-xl border border-green-200 p-6"
           >
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">💡 AI Recommendation</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">📊 Basic Analysis Suggestions</h3>
             <div className="space-y-3 text-sm text-gray-700">
-              <p>Based on your data structure:</p>
+              <p>Rule-based recommendations from your data types:</p>
               <ul className="space-y-1 ml-4">
                 {timeVariable && eventVariable && (
                   <>
@@ -627,6 +792,16 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
           <ArrowRight className="h-4 w-4" />
         </button>
       </div>
+
+      {/* Template Library Modal */}
+      {showTemplateLibrary && (
+        <TemplateLibrary
+          data={data.data}
+          onTemplateSelect={handleTemplateSelect}
+          onClose={() => setShowTemplateLibrary(false)}
+          analysisGoal={naturalLanguageQuery}
+        />
+      )}
     </div>
   );
 };

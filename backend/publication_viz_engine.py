@@ -1109,3 +1109,271 @@ class PublicationVizEngine:
             plt.ion()
             
         return result
+    
+    def create_heatmap(self, data: pd.DataFrame, 
+                      x_var: str = None, y_var: str = None, value_var: str = None,
+                      title: str = None, custom_labels: Dict[str, str] = None,
+                      cmap: str = 'RdBu_r', show_values: bool = True,
+                      cluster_rows: bool = False, cluster_cols: bool = False,
+                      format_type: str = 'png') -> str:
+        """
+        Create publication-quality heatmap with optional clustering
+        """
+        fig, ax = plt.subplots(figsize=(12, 8), dpi=self.style_config['dpi'])
+        
+        # Prepare data matrix
+        if x_var and y_var and value_var:
+            # Pivot data for heatmap
+            matrix = data.pivot_table(index=y_var, columns=x_var, values=value_var, aggfunc='mean')
+        else:
+            # Use data as-is (assuming it's already a matrix)
+            matrix = data
+        
+        # Apply clustering if requested
+        if cluster_rows or cluster_cols:
+            from scipy.cluster.hierarchy import dendrogram, linkage
+            from scipy.spatial.distance import pdist, squareform
+            
+            if cluster_rows:
+                row_linkage = linkage(pdist(matrix, metric='euclidean'), method='average')
+                row_order = dendrogram(row_linkage, no_plot=True)['leaves']
+                matrix = matrix.iloc[row_order, :]
+            
+            if cluster_cols:
+                col_linkage = linkage(pdist(matrix.T, metric='euclidean'), method='average')
+                col_order = dendrogram(col_linkage, no_plot=True)['leaves']
+                matrix = matrix.iloc[:, col_order]
+        
+        # Create heatmap
+        im = ax.imshow(matrix, cmap=cmap, aspect='auto')
+        
+        # Set ticks and labels
+        ax.set_xticks(np.arange(matrix.shape[1]))
+        ax.set_yticks(np.arange(matrix.shape[0]))
+        ax.set_xticklabels(matrix.columns, rotation=45, ha='right')
+        ax.set_yticklabels(matrix.index)
+        
+        # Add values to cells if requested
+        if show_values:
+            for i in range(matrix.shape[0]):
+                for j in range(matrix.shape[1]):
+                    value = matrix.iloc[i, j]
+                    color = 'white' if abs(value) > matrix.values.max()/2 else 'black'
+                    ax.text(j, i, f'{value:.2f}', ha='center', va='center',
+                           color=color, fontsize=8)
+        
+        # Add colorbar
+        cbar = plt.colorbar(im, ax=ax, shrink=0.8)
+        cbar.set_label(custom_labels.get('colorbar', 'Value') if custom_labels else 'Value',
+                      rotation=270, labelpad=20)
+        
+        # Set labels and title
+        if custom_labels:
+            ax.set_xlabel(custom_labels.get('x', ''))
+            ax.set_ylabel(custom_labels.get('y', ''))
+        if title:
+            ax.set_title(title, fontsize=self.style_config['font_sizes']['title'], 
+                        fontweight='bold', pad=20)
+        
+        plt.tight_layout()
+        return self._figure_to_base64(fig, format_type)
+    
+    def create_volcano_plot(self, data: pd.DataFrame,
+                           log2fc_col: str, pvalue_col: str,
+                           gene_col: str = None, 
+                           fc_threshold: float = 1.0,
+                           pvalue_threshold: float = 0.05,
+                           title: str = None,
+                           highlight_genes: List[str] = None,
+                           format_type: str = 'png') -> str:
+        """
+        Create volcano plot for differential expression analysis
+        """
+        fig, ax = plt.subplots(figsize=(10, 8), dpi=self.style_config['dpi'])
+        
+        # Calculate -log10(p-value)
+        data['neg_log10_pvalue'] = -np.log10(data[pvalue_col].clip(lower=1e-300))
+        
+        # Define point colors based on significance
+        colors = []
+        for _, row in data.iterrows():
+            if row[pvalue_col] < pvalue_threshold:
+                if row[log2fc_col] > fc_threshold:
+                    colors.append('#d62728')  # Upregulated
+                elif row[log2fc_col] < -fc_threshold:
+                    colors.append('#1f77b4')  # Downregulated
+                else:
+                    colors.append('#7f7f7f')  # Not significant FC
+            else:
+                colors.append('#cccccc')  # Not significant
+        
+        # Create scatter plot
+        ax.scatter(data[log2fc_col], data['neg_log10_pvalue'], 
+                  c=colors, alpha=0.6, s=20, edgecolors='none')
+        
+        # Add threshold lines
+        ax.axhline(y=-np.log10(pvalue_threshold), color='gray', linestyle='--', alpha=0.5)
+        ax.axvline(x=fc_threshold, color='gray', linestyle='--', alpha=0.5)
+        ax.axvline(x=-fc_threshold, color='gray', linestyle='--', alpha=0.5)
+        
+        # Highlight specific genes if requested
+        if highlight_genes and gene_col:
+            highlight_data = data[data[gene_col].isin(highlight_genes)]
+            ax.scatter(highlight_data[log2fc_col], highlight_data['neg_log10_pvalue'],
+                      c='gold', s=100, edgecolors='black', linewidths=1, zorder=5)
+            
+            # Add gene labels
+            for _, row in highlight_data.iterrows():
+                ax.annotate(row[gene_col], 
+                          xy=(row[log2fc_col], row['neg_log10_pvalue']),
+                          xytext=(5, 5), textcoords='offset points',
+                          fontsize=8, fontweight='bold')
+        
+        # Labels and title
+        ax.set_xlabel('Log2 Fold Change', fontsize=self.style_config['font_sizes']['labels'])
+        ax.set_ylabel('-Log10(P-value)', fontsize=self.style_config['font_sizes']['labels'])
+        if title:
+            ax.set_title(title, fontsize=self.style_config['font_sizes']['title'], 
+                        fontweight='bold', pad=20)
+        
+        # Add legend
+        from matplotlib.patches import Patch
+        legend_elements = [
+            Patch(facecolor='#d62728', label='Upregulated'),
+            Patch(facecolor='#1f77b4', label='Downregulated'),
+            Patch(facecolor='#7f7f7f', label='Not significant')
+        ]
+        ax.legend(handles=legend_elements, loc='upper right')
+        
+        # Style adjustments
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        return self._figure_to_base64(fig, format_type)
+    
+    def create_violin_plot(self, data: pd.DataFrame,
+                          outcome_var: str, group_var: str,
+                          title: str = None, custom_labels: Dict[str, str] = None,
+                          show_box: bool = True, show_points: bool = True,
+                          show_stats: bool = True, format_type: str = 'png') -> str:
+        """
+        Create violin plot with optional box plot overlay and statistical annotations
+        """
+        fig, ax = plt.subplots(figsize=(10, 8), dpi=self.style_config['dpi'])
+        
+        # Prepare data
+        groups = data[group_var].unique()
+        group_data = [data[data[group_var] == g][outcome_var].dropna() for g in groups]
+        
+        # Create violin plot
+        parts = ax.violinplot(group_data, positions=range(len(groups)),
+                              widths=0.7, showmeans=False, showmedians=False)
+        
+        # Customize violin colors
+        for i, pc in enumerate(parts['bodies']):
+            pc.set_facecolor(self.style_config['colors'][i % len(self.style_config['colors'])])
+            pc.set_alpha(0.7)
+        
+        # Add box plot overlay if requested
+        if show_box:
+            bp = ax.boxplot(group_data, positions=range(len(groups)),
+                           widths=0.3, patch_artist=True,
+                           boxprops=dict(facecolor='white', alpha=0.8),
+                           medianprops=dict(color='red', linewidth=2),
+                           flierprops=dict(marker='o', markerfacecolor='gray', markersize=4))
+        
+        # Add individual points if requested
+        if show_points:
+            for i, data_group in enumerate(group_data):
+                y = data_group
+                x = np.random.normal(i, 0.04, size=len(y))
+                ax.scatter(x, y, alpha=0.3, s=10, color='black')
+        
+        # Add statistical annotations if requested
+        if show_stats and len(groups) == 2:
+            from scipy import stats
+            stat, p_value = stats.ttest_ind(group_data[0], group_data[1])
+            
+            y_max = max([d.max() for d in group_data])
+            y_pos = y_max * 1.05
+            
+            # Add significance bracket
+            ax.plot([0, 1], [y_pos, y_pos], 'k-', linewidth=1)
+            
+            # Add p-value
+            if p_value < 0.001:
+                sig_text = f'p < 0.001'
+            else:
+                sig_text = f'p = {p_value:.3f}'
+            
+            ax.text(0.5, y_pos * 1.02, sig_text, ha='center', fontsize=10)
+        
+        # Labels and styling
+        ax.set_xticks(range(len(groups)))
+        ax.set_xticklabels(groups)
+        
+        if custom_labels:
+            ax.set_xlabel(custom_labels.get('x', group_var))
+            ax.set_ylabel(custom_labels.get('y', outcome_var))
+        else:
+            ax.set_xlabel(group_var)
+            ax.set_ylabel(outcome_var)
+        
+        if title:
+            ax.set_title(title, fontsize=self.style_config['font_sizes']['title'],
+                        fontweight='bold', pad=20)
+        
+        # Remove top and right spines
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        
+        plt.tight_layout()
+        return self._figure_to_base64(fig, format_type)
+    
+    def create_roc_curve(self, y_true: np.ndarray, y_scores: np.ndarray,
+                        title: str = None, multi_class: Dict[str, tuple] = None,
+                        format_type: str = 'png') -> str:
+        """
+        Create ROC curve with AUC calculation
+        multi_class: Dictionary with class names as keys and (y_true, y_scores) as values
+        """
+        fig, ax = plt.subplots(figsize=(8, 8), dpi=self.style_config['dpi'])
+        
+        if multi_class:
+            # Multiple ROC curves for multi-class
+            for i, (class_name, (y_t, y_s)) in enumerate(multi_class.items()):
+                fpr, tpr, _ = roc_curve(y_t, y_s)
+                roc_auc = auc(fpr, tpr)
+                color = self.style_config['colors'][i % len(self.style_config['colors'])]
+                ax.plot(fpr, tpr, color=color, linewidth=2,
+                       label=f'{class_name} (AUC = {roc_auc:.3f})')
+        else:
+            # Single ROC curve
+            fpr, tpr, _ = roc_curve(y_true, y_scores)
+            roc_auc = auc(fpr, tpr)
+            ax.plot(fpr, tpr, color=self.style_config['colors'][0], linewidth=2,
+                   label=f'ROC curve (AUC = {roc_auc:.3f})')
+        
+        # Add diagonal reference line
+        ax.plot([0, 1], [0, 1], 'k--', linewidth=1, alpha=0.5)
+        
+        # Labels and title
+        ax.set_xlabel('False Positive Rate', fontsize=self.style_config['font_sizes']['labels'])
+        ax.set_ylabel('True Positive Rate', fontsize=self.style_config['font_sizes']['labels'])
+        if title:
+            ax.set_title(title, fontsize=self.style_config['font_sizes']['title'],
+                        fontweight='bold', pad=20)
+        
+        # Legend
+        ax.legend(loc='lower right', fontsize=self.style_config['font_sizes']['legend'])
+        
+        # Grid and styling
+        ax.grid(True, alpha=0.3)
+        ax.set_xlim([0, 1])
+        ax.set_ylim([0, 1])
+        ax.set_aspect('equal')
+        
+        plt.tight_layout()
+        return self._figure_to_base64(fig, format_type)
