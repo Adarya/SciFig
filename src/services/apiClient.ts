@@ -23,6 +23,7 @@ export interface User {
   id: string;
   email: string;
   name?: string;
+  role?: 'admin' | 'researcher' | 'analyst' | 'user';
   subscription_tier: 'free' | 'pro' | 'enterprise';
   subscription_status: 'active' | 'canceled' | 'past_due';
   trial_ends_at?: string;
@@ -425,7 +426,18 @@ class ApiClient {
 
     checkSession: async (): Promise<{ valid: boolean; user?: User }> => {
       try {
-        const user = await this.request<User>('/auth/check');
+        const response = await this.request<any>('/auth/check');
+        const user: User = {
+          id: response.id,
+          email: response.email,
+          name: response.full_name,
+          role: response.role,
+          subscription_tier: response.subscription_tier || 'free',
+          subscription_status: response.subscription_status || 'active',
+          trial_ends_at: response.trial_ends_at,
+          created_at: response.created_at,
+          updated_at: response.updated_at
+        };
         return { valid: true, user };
       } catch (error) {
         return { valid: false };
@@ -933,6 +945,49 @@ class ApiClient {
       unlimited: boolean;
     }> => {
       return this.request('/figure_analysis/usage');
+    },
+  };
+
+  // =====================================
+  // Admin Service
+  // =====================================
+
+  admin = {
+    getStats: async (): Promise<any> => {
+      return this.request('/admin/stats');
+    },
+
+    getUsers: async (): Promise<any[]> => {
+      return this.request('/auth/users');
+    },
+
+    getUsersUsage: async (): Promise<any[]> => {
+      return this.request('/admin/users/usage');
+    },
+
+    updateUserRole: async (userId: string, role: string): Promise<any> => {
+      return this.request(`/auth/users/${userId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ role }),
+      });
+    },
+
+    resetUserUsage: async (userId: string, featureType?: string): Promise<any> => {
+      const url = featureType 
+        ? `/admin/users/${userId}/reset-usage?feature_type=${featureType}`
+        : `/admin/users/${userId}/reset-usage`;
+      return this.request(url, { method: 'POST' });
+    },
+
+    createUser: async (userData: any): Promise<any> => {
+      return this.request('/admin/users', {
+        method: 'POST',
+        body: JSON.stringify(userData),
+      });
+    },
+
+    deleteUser: async (userId: string): Promise<any> => {
+      return this.request(`/admin/users/${userId}`, { method: 'DELETE' });
     },
   };
 

@@ -250,6 +250,11 @@ export const useApiAuth = () => {
     }
   };
 
+  const getAccessToken = async (): Promise<string | null> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token || null;
+  };
+
   return {
     ...state,
     signIn,
@@ -259,6 +264,7 @@ export const useApiAuth = () => {
     resetPassword,
     updateUser,
     checkSession,
+    getAccessToken,
     getLimits
   };
 }; 

@@ -11,9 +11,10 @@ import {
   Clock,
   CheckCircle,
   TrendingUp,
-  Crown
+  Crown,
+  Shield
 } from 'lucide-react';
-import { User } from '../utils/supabase';
+import { User } from '../services/apiClient';
 import { useProjects } from '../hooks/useProjects';
 import { logger } from '../utils/logger';
 import { apiClient } from '../services/apiClient';
@@ -187,13 +188,24 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate, onLogout, onSet
                     )}
                   </div>
                 </div>
-                <button 
-                  onClick={onLogout}
-                  className="text-gray-500 hover:text-gray-700"
-                  title="Sign out"
-                >
-                  <LogOut className="h-4 w-4" />
-                </button>
+                <div className="flex items-center space-x-2">
+                  {user.role === 'admin' && (
+                    <button 
+                      onClick={() => onNavigate('admin')}
+                      className="text-red-500 hover:text-red-700 transition-colors"
+                      title="Admin Panel"
+                    >
+                      <Shield className="h-4 w-4" />
+                    </button>
+                  )}
+                  <button 
+                    onClick={onLogout}
+                    className="text-gray-500 hover:text-gray-700"
+                    title="Sign out"
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>

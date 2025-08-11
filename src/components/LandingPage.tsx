@@ -13,7 +13,7 @@ import {
   Star,
   Upload
 } from 'lucide-react';
-import { User } from '../utils/supabase';
+import { User } from '../services/apiClient';
 
 interface LandingPageProps {
   onLogin: (mode?: 'signin' | 'signup') => void;
@@ -73,12 +73,22 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onNavigate, user }) 
                 Try Free Demo
               </button>
               {user ? (
-                <button 
-                  onClick={() => onNavigate('dashboard')}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Dashboard
-                </button>
+                <div className="flex items-center space-x-3">
+                  {user.role === 'admin' && (
+                    <button 
+                      onClick={() => onNavigate('admin')}
+                      className="text-red-600 hover:text-red-700 transition-colors font-medium"
+                    >
+                      Admin Panel
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => onNavigate('dashboard')}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Dashboard
+                  </button>
+                </div>
               ) : (
                 <>
                   <button 

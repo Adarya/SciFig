@@ -14,6 +14,7 @@ interface ApiAuthContextType {
   resetPassword: (email: string) => Promise<void>;
   updateUser: (updates: { name?: string }) => Promise<User>;
   checkSession: () => Promise<void>;
+  getAccessToken: () => Promise<string | null>;
   getLimits: () => Promise<{
     analyses_remaining: number;
     figures_remaining: number;
