@@ -297,8 +297,8 @@ class ApiClient {
     this.backendToken = token;
   }
 
-  // Private helper to get auth headers
-  private async getAuthHeaders(): Promise<Record<string, string>> {
+  // Helper to get auth headers
+  async getAuthHeaders(): Promise<Record<string, string>> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
@@ -853,6 +853,86 @@ class ApiClient {
 
     getAnalysisGoals: async (): Promise<{ analysis_goals: AnalysisGoalInfo[] }> => {
       return this.request<{ analysis_goals: AnalysisGoalInfo[] }>('/visualization/ai/analysis_goals');
+    },
+  };
+
+  // =====================================
+  // Statistical Analysis Service
+  // =====================================
+
+  statistical = {
+    analyze: async (request: {
+      data: any[];
+      analysis_type: string;
+      outcome_variable: string;
+      group_variable: string;
+      time_variable?: string;
+      event_variable?: string;
+    }): Promise<any> => {
+      return this.request('/statistical/analyze', {
+        method: 'POST',
+        body: JSON.stringify(request),
+      });
+    },
+
+    analyzeMultivariate: async (request: {
+      data: any[];
+      outcome_variable: string;
+      predictor_variables: string[];
+      model_type?: string;
+      time_variable?: string;
+      event_variable?: string;
+    }): Promise<any> => {
+      return this.request('/statistical/analyze_multivariate', {
+        method: 'POST',
+        body: JSON.stringify(request),
+      });
+    },
+
+    getUsage: async (): Promise<{
+      remaining: number;
+      limit: number;
+      unlimited: boolean;
+    }> => {
+      return this.request('/statistical/usage');
+    },
+
+    getMethods: async (): Promise<any> => {
+      return this.request('/statistical/methods');
+    },
+  };
+
+  // =====================================
+  // Figure Analysis Service
+  // =====================================
+
+  figureAnalysis = {
+    analyze: async (file: File): Promise<any> => {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      // For FormData, we need to handle headers differently
+      const authHeaders = await apiClient.getAuthHeaders();
+      const headers: Record<string, string> = {};
+      
+      // Only add Authorization header, not Content-Type (browser will set it for FormData)
+      if (authHeaders['Authorization']) {
+        headers['Authorization'] = authHeaders['Authorization'];
+      }
+      
+      return apiClient.request('/figure_analysis/analyze', {
+        method: 'POST',
+        body: formData,
+        headers,
+      });
+    },
+
+    getUsage: async (): Promise<{
+      remaining: number;
+      limit: number;
+      unlimited: boolean;
+    }> => {
+      return this.request('/figure_analysis/usage');
     },
   };
 

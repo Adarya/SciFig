@@ -102,27 +102,14 @@ const ResultsView: React.FC<ResultsViewProps> = ({
     }
 
     try {
-      const response = await fetch('http://localhost:8000/analyze_multivariate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          data: config.data,
-          outcome_variable: config.outcomeVariable,
-          predictor_variables: config.predictorVariables,
-          time_variable: config.timeVariable || null,
-          event_variable: config.eventVariable || null,
-          analysis_type: 'multivariate_analysis'
-        }),
+      const result = await apiClient.statistical.analyzeMultivariate({
+        data: config.data,
+        outcome_variable: config.outcomeVariable,
+        predictor_variables: config.predictorVariables,
+        time_variable: config.timeVariable || null,
+        event_variable: config.eventVariable || null,
+        model_type: 'multivariate_analysis'
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
       
                     // Convert backend result to frontend AnalysisWorkflow format
        return {

@@ -24,6 +24,7 @@ import {
   Filler
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
+import { apiClient } from '../services/apiClient';
 
 // Register Chart.js components
 ChartJS.register(
@@ -155,22 +156,8 @@ const KaplanMeierAnalysis: React.FC<KaplanMeierAnalysisProps> = ({
         data: `[${requestBody.data.length} rows]` // Don't log full data
       });
 
-      // Call the working statistical analysis endpoint
-      const response = await fetch('http://localhost:8000/analyze', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Backend error response:', errorText);
-        throw new Error(`Analysis failed: ${response.status} - ${errorText}`);
-      }
-
-      const result = await response.json();
+      // Call the statistical analysis endpoint
+      const result = await apiClient.statistical.analyze(requestBody);
       console.log('Analysis result:', result);
       setAnalysisResults(result);
       

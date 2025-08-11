@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { User } from '../utils/supabase';
 import ImageAnalysisModal from './ImageAnalysisModal';
+import { useUsageLimits } from '../hooks/useUsageLimits';
+import { apiClient } from '../services/apiClient';
 
 interface FigureAnalyzerProps {
   onNavigate: NavigateFunction;
@@ -31,13 +33,11 @@ const FigureAnalyzer: React.FC<FigureAnalyzerProps> = ({ onNavigate, user, onLog
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisCount, setAnalysisCount] = useState(0);
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
 
-  // Free tier limits
-  const FREE_ANALYSIS_LIMIT = 3;
+  // Use the new usage limits hook
+  const { usage, hasReachedLimit, refreshUsage } = useUsageLimits(user, 'figure_analysis');
   const isFreeTier = !user;
-  const hasReachedLimit = isFreeTier && analysisCount >= FREE_ANALYSIS_LIMIT;
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (hasReachedLimit) {
@@ -47,7 +47,7 @@ const FigureAnalyzer: React.FC<FigureAnalyzerProps> = ({ onNavigate, user, onLog
     const file = acceptedFiles[0];
     if (file) {
       setShowAnalysisModal(true);
-      setAnalysisCount(prev => prev + 1);
+      // Usage will be tracked by the backend when the analysis is performed
     }
   }, [hasReachedLimit]);
 
@@ -132,7 +132,7 @@ const FigureAnalyzer: React.FC<FigureAnalyzerProps> = ({ onNavigate, user, onLog
                   <p className={`font-medium ${hasReachedLimit ? 'text-red-900' : 'text-blue-900'}`}>
                     {hasReachedLimit 
                       ? 'Free analysis limit reached' 
-                      : `Free Trial: ${analysisCount}/${FREE_ANALYSIS_LIMIT} analyses used`
+                      : `Free Trial: ${usage.limit - usage.remaining}/${usage.limit} analyses used`
                     }
                   </p>
                   <p className={`text-sm ${hasReachedLimit ? 'text-red-700' : 'text-blue-700'}`}>
@@ -171,7 +171,7 @@ const FigureAnalyzer: React.FC<FigureAnalyzerProps> = ({ onNavigate, user, onLog
               </p>
               {isFreeTier && !hasReachedLimit && (
                 <p className="text-sm text-blue-600 mt-2">
-                  ✨ Try {FREE_ANALYSIS_LIMIT - analysisCount} more {FREE_ANALYSIS_LIMIT - analysisCount === 1 ? 'analysis' : 'analyses'} free!
+                  ✨ Try {usage.remaining} more {usage.remaining === 1 ? 'analysis' : 'analyses'} free!
                 </p>
               )}
             </motion.div>
@@ -358,9 +358,10 @@ const FigureAnalyzer: React.FC<FigureAnalyzerProps> = ({ onNavigate, user, onLog
       </div>
 
       {/* Image Analysis Modal */}
-      <ImageAnalysisModal
-        isOpen={showAnalysisModal}
+            <ImageAnalysisModal 
+        isOpen={showAnalysisModal} 
         onClose={() => setShowAnalysisModal(false)}
+        onAnalysisComplete={refreshUsage}
       />
     </div>
   );

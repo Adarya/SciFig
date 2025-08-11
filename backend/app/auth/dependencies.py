@@ -134,7 +134,8 @@ require_analyst = require_role([UserRole.ADMIN, UserRole.RESEARCHER, UserRole.AN
 
 async def get_optional_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
-    db: Client = Depends(get_db_client)
+    db: Client = Depends(get_db_client),
+    admin_db: Client = Depends(get_admin_db_client)
 ) -> Optional[UserResponse]:
     """Get current user if authenticated, otherwise None"""
     
@@ -142,6 +143,6 @@ async def get_optional_user(
         return None
         
     try:
-        return await get_current_user(credentials, db)
+        return await get_current_user(credentials, db, admin_db)
     except HTTPException:
         return None 

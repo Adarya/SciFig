@@ -1,6 +1,6 @@
 """Statistical analysis routes"""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from typing import Optional
 import pandas as pd
 
@@ -8,6 +8,9 @@ from .models import AnalysisRequest, MultivariateAnalysisRequest, StatisticalRes
 from .services import StatisticalAnalysisService
 from ..auth.dependencies import get_current_active_user, get_optional_user
 from ..auth.models import UserResponse
+from ..config.database import get_admin_db_client
+from ..utils.usage_limits import UsageLimiter
+from supabase import Client
 
 router = APIRouter(prefix="/statistical", tags=["statistical analysis"])
 
@@ -15,10 +18,35 @@ router = APIRouter(prefix="/statistical", tags=["statistical analysis"])
 @router.post("/analyze", response_model=StatisticalResult)
 async def analyze_data(
     request: AnalysisRequest,
-    current_user: Optional[UserResponse] = Depends(get_optional_user)
+    http_request: Request,
+    current_user: Optional[UserResponse] = Depends(get_optional_user),
+    admin_db: Client = Depends(get_admin_db_client)
 ):
     """Perform statistical analysis on the provided data"""
     try:
+        # Check usage limits for users
+        limiter = UsageLimiter(admin_db)
+        user_id = current_user.id if current_user else None
+        
+        allowed = await limiter.check_and_increment_usage(
+            http_request, 
+            'statistical_analysis', 
+            user_id
+        )
+        
+        if not allowed:
+            if current_user:
+                limit = limiter.LIMITS['authenticated'].get('statistical_analysis', 3)
+                detail = f"Usage limit exceeded. Users are limited to {limit} statistical analyses. Please upgrade your plan for more access."
+            else:
+                limit = limiter.LIMITS['anonymous'].get('statistical_analysis', 1)
+                detail = f"Usage limit exceeded. Anonymous users are limited to {limit} statistical analysis. Please sign up for more access."
+            
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=detail
+            )
+        
         # Convert to DataFrame
         df = pd.DataFrame(request.data)
         
@@ -37,6 +65,9 @@ async def analyze_data(
         
         return result
         
+    except HTTPException:
+        # Re-raise HTTP exceptions (like usage limit errors)
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -52,10 +83,35 @@ async def analyze_data(
 @router.post("/analyze_multivariate", response_model=MultivariateResult)
 async def analyze_multivariate(
     request: MultivariateAnalysisRequest,
-    current_user: Optional[UserResponse] = Depends(get_optional_user)
+    http_request: Request,
+    current_user: Optional[UserResponse] = Depends(get_optional_user),
+    admin_db: Client = Depends(get_admin_db_client)
 ):
-    """Perform multivariate statistical analysis with forest plot visualization"""
+    """Perform multivariate statistical analysis"""
     try:
+        # Check usage limits for users
+        limiter = UsageLimiter(admin_db)
+        user_id = current_user.id if current_user else None
+        
+        allowed = await limiter.check_and_increment_usage(
+            http_request, 
+            'statistical_analysis', 
+            user_id
+        )
+        
+        if not allowed:
+            if current_user:
+                limit = limiter.LIMITS['authenticated'].get('statistical_analysis', 3)
+                detail = f"Usage limit exceeded. Users are limited to {limit} statistical analyses. Please upgrade your plan for more access."
+            else:
+                limit = limiter.LIMITS['anonymous'].get('statistical_analysis', 1)
+                detail = f"Usage limit exceeded. Anonymous users are limited to {limit} statistical analysis. Please sign up for more access."
+            
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=detail
+            )
+        
         # Convert to DataFrame
         df = pd.DataFrame(request.data)
         
@@ -74,6 +130,9 @@ async def analyze_multivariate(
         
         return result
         
+    except HTTPException:
+        # Re-raise HTTP exceptions (like usage limit errors)
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -87,6 +146,32 @@ async def analyze_multivariate(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Multivariate analysis failed: {str(e)}"
+        )
+
+
+@router.get("/usage")
+async def get_usage_info(
+    http_request: Request,
+    current_user: Optional[UserResponse] = Depends(get_optional_user),
+    admin_db: Client = Depends(get_admin_db_client)
+):
+    """Get current usage information for statistical analysis"""
+    try:
+        limiter = UsageLimiter(admin_db)
+        user_id = current_user.id if current_user else None
+        
+        usage_info = await limiter.get_remaining_usage(
+            http_request,
+            'statistical_analysis',
+            user_id
+        )
+        
+        return usage_info
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get usage information: {str(e)}"
         )
 
 

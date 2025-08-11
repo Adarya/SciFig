@@ -24,6 +24,7 @@ import { User } from '../utils/supabase';
 import { Dataset } from '../services/apiClient';
 import { ParsedData } from '../utils/csvParser';
 import { apiClient } from '../services/apiClient';
+import { useUsageLimits } from '../hooks/useUsageLimits';
 
 interface AnalysisWorkflowProps {
   onNavigate: NavigateFunction;
@@ -44,17 +45,15 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, o
   const [eventVariable, setEventVariable] = useState<string>('');
   const [predictorVariables, setPredictorVariables] = useState<string[]>([]);
   const [analysisConfig, setAnalysisConfig] = useState<any>(null);
-  const [analysisCount, setAnalysisCount] = useState(0);
   const [analysisInProgress, setAnalysisInProgress] = useState(false);
   const [analysisProgressId, setAnalysisProgressId] = useState<string | null>(null);
 
   // State to track if we're loading an existing project
   const [loadingProject, setLoadingProject] = useState(!!project); // Start loading if project is provided
 
-  // Free tier limits
-  const FREE_ANALYSIS_LIMIT = 3;
+  // Use the new usage limits hook
+  const { usage, hasReachedLimit, refreshUsage } = useUsageLimits(user, 'statistical_analysis');
   const isFreeTier = !user;
-  const hasReachedLimit = isFreeTier && analysisCount >= FREE_ANALYSIS_LIMIT;
 
   // Load existing project data when project prop changes
   useEffect(() => {
@@ -219,13 +218,13 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, o
       }
       
       // Increment analysis count and proceed
-      setAnalysisCount(prev => prev + 1);
+      refreshUsage();
       handleNext();
     } catch (error) {
       console.error("Error preparing analysis:", error);
       // Continue with client-side analysis as fallback
       setAnalysisConfig(config);
-      setAnalysisCount(prev => prev + 1);
+      refreshUsage();
       handleNext();
     }
   };
@@ -447,11 +446,11 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, o
                     <Zap className="h-5 w-5 text-blue-600" />
                   )}
                   <div>
-                    <p className={`font-medium ${hasReachedLimit ? 'text-red-900' : 'text-blue-900'}`}>
-                      {hasReachedLimit 
-                        ? 'Free analysis limit reached' 
-                        : `Free Trial: ${analysisCount}/${FREE_ANALYSIS_LIMIT} analyses used`
-                      }
+                                          <p className={`font-medium ${hasReachedLimit ? 'text-red-900' : 'text-blue-900'}`}>
+                        {hasReachedLimit 
+                          ? 'Free analysis limit reached' 
+                          : `Free Trial: ${usage.limit - usage.remaining}/${usage.limit} analyses used`
+                        }
                     </p>
                     <p className={`text-sm ${hasReachedLimit ? 'text-red-700' : 'text-blue-700'}`}>
                       {hasReachedLimit 

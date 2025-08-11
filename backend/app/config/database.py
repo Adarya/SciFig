@@ -205,6 +205,40 @@ class DatabaseManager:
         CREATE INDEX IF NOT EXISTS idx_collaborations_user_id ON public.collaborations(user_id);
         """
         
+        # Anonymous usage tracking table
+        anonymous_usage_table = """
+        CREATE TABLE IF NOT EXISTS public.anonymous_usage (
+            id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+            ip_address TEXT NOT NULL,
+            feature_type TEXT NOT NULL CHECK (feature_type IN ('statistical_analysis', 'figure_analysis')),
+            usage_count INTEGER DEFAULT 1,
+            first_used TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            last_used TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            UNIQUE(ip_address, feature_type)
+        );
+        """
+        
+        # User usage tracking table
+        user_usage_table = """
+        CREATE TABLE IF NOT EXISTS public.user_usage (
+            id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+            user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+            feature_type TEXT NOT NULL CHECK (feature_type IN ('statistical_analysis', 'figure_analysis')),
+            usage_count INTEGER DEFAULT 1,
+            first_used TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            last_used TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            UNIQUE(user_id, feature_type)
+        );
+        """
+        
+        # Usage tracking indexes for better performance
+        usage_indexes = """
+        CREATE INDEX IF NOT EXISTS idx_anonymous_usage_ip_feature ON public.anonymous_usage(ip_address, feature_type);
+        CREATE INDEX IF NOT EXISTS idx_anonymous_usage_last_used ON public.anonymous_usage(last_used);
+        CREATE INDEX IF NOT EXISTS idx_user_usage_user_feature ON public.user_usage(user_id, feature_type);
+        CREATE INDEX IF NOT EXISTS idx_user_usage_last_used ON public.user_usage(last_used);
+        """
+
         # Create profiles view for frontend compatibility
         profiles_view = """
         CREATE OR REPLACE VIEW public.profiles AS
@@ -239,6 +273,9 @@ class DatabaseManager:
             analyses_rls,
             collaborations_table,
             collaborations_rls,
+            anonymous_usage_table,
+            user_usage_table,
+            usage_indexes,
             indexes,
             profiles_view
         ]

@@ -11,6 +11,7 @@ from .statistical.routes import router as statistical_router
 from .visualization.routes import router as visualization_router
 from .projects.routes import router as projects_router
 from .analyses.routes import router as analyses_router
+from .figure_analysis.routes import router as figure_analysis_router
 from .statistical.routes import analyze_data as stat_analyze, analyze_multivariate as stat_multivariate
 from .visualization.routes import (
     generate_display_figure as viz_display,
@@ -61,6 +62,7 @@ app.include_router(statistical_router, prefix="/api/v1")
 app.include_router(visualization_router, prefix="/api/v1")
 app.include_router(projects_router, prefix="/api/v1")
 app.include_router(analyses_router, prefix="/api/v1")
+app.include_router(figure_analysis_router, prefix="/api/v1")
 
 # Backward compatibility routes for existing frontend
 app.post("/analyze")(stat_analyze)
