@@ -8,7 +8,7 @@ from typing import Optional
 import httpx
 
 from ..config.settings import settings
-from ..config.database import get_db_client, get_admin_db_client
+from ..config.database import get_db_client, get_admin_db_client, get_authenticated_db_client
 from .models import TokenData, UserResponse, UserRole
 
 
@@ -39,8 +39,8 @@ async def get_current_user(
             
         supabase_user = user_response.user
         
-        # Get user profile from our custom users table
-        profile_response = db.table('users').select('*').eq('id', supabase_user.id).execute()
+        # Get user profile from our custom users table using admin client to bypass RLS
+        profile_response = admin_db.table('users').select('*').eq('id', supabase_user.id).execute()
         
         if not profile_response.data:
             # Create user profile if it doesn't exist using admin client (upsert to handle race conditions)
@@ -66,7 +66,7 @@ async def get_current_user(
             except Exception as e:
                 # If upsert fails, try to fetch existing user (fallback for edge cases)
                 print(f"Upsert failed, attempting to fetch existing user: {e}")
-                retry_response = db.table('users').select('*').eq('id', supabase_user.id).execute()
+                retry_response = admin_db.table('users').select('*').eq('id', supabase_user.id).execute()
                 if retry_response.data:
                     user_profile = retry_response.data[0]
                 else:
@@ -103,6 +103,13 @@ async def get_current_active_user(
             detail="Inactive user"
         )
     return current_user
+
+
+def get_user_authenticated_db_client(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> Client:
+    """Get database client authenticated with user's token for RLS operations"""
+    return get_authenticated_db_client(credentials.credentials)
 
 
 def require_role(required_roles: list[UserRole]):

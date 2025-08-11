@@ -9,7 +9,7 @@ import time
 import logging
 
 from ..config.database import get_db_client
-from ..auth.dependencies import get_current_active_user
+from ..auth.dependencies import get_current_active_user, get_user_authenticated_db_client
 from ..auth.models import UserResponse
 from ..projects.models import (
     AnalysisCreate, AnalysisUpdate, AnalysisResponse, AnalysisListResponse
@@ -27,7 +27,7 @@ async def list_user_analyses(
     project_id: Optional[str] = Query(None, description="Filter by project ID"),
     analysis_type: Optional[str] = Query(None, description="Filter by analysis type"),
     current_user: UserResponse = Depends(get_current_active_user),
-    db: Client = Depends(get_db_client)
+    db: Client = Depends(get_user_authenticated_db_client)
 ):
     """List all user's analyses with optional filters"""
     try:
@@ -97,7 +97,7 @@ async def list_user_analyses(
 async def create_analysis(
     analysis_data: AnalysisCreate,
     current_user: UserResponse = Depends(get_current_active_user),
-    db: Client = Depends(get_db_client)
+    db: Client = Depends(get_user_authenticated_db_client)
 ):
     """Create a new analysis"""
     try:
@@ -218,7 +218,7 @@ async def create_analysis(
 async def get_analysis(
     analysis_id: str,
     current_user: UserResponse = Depends(get_current_active_user),
-    db: Client = Depends(get_db_client)
+    db: Client = Depends(get_user_authenticated_db_client)
 ):
     """Get a specific analysis by ID"""
     try:
@@ -261,7 +261,7 @@ async def update_analysis(
     analysis_id: str,
     analysis_update: AnalysisUpdate,
     current_user: UserResponse = Depends(get_current_active_user),
-    db: Client = Depends(get_db_client)
+    db: Client = Depends(get_user_authenticated_db_client)
 ):
     """Update an analysis"""
     try:
@@ -331,7 +331,7 @@ async def update_analysis(
 async def delete_analysis(
     analysis_id: str,
     current_user: UserResponse = Depends(get_current_active_user),
-    db: Client = Depends(get_db_client)
+    db: Client = Depends(get_user_authenticated_db_client)
 ):
     """Delete an analysis"""
     try:

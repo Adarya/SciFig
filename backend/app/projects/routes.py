@@ -7,7 +7,7 @@ import json
 from datetime import datetime
 
 from ..config.database import get_db_client
-from ..auth.dependencies import get_current_active_user
+from ..auth.dependencies import get_current_active_user, get_user_authenticated_db_client
 from ..auth.models import UserResponse
 from .models import (
     ProjectCreate, ProjectUpdate, ProjectResponse, ProjectListResponse,
@@ -28,7 +28,7 @@ async def list_projects(
     limit: int = Query(50, ge=1, le=100, description="Items per page"),
     search: Optional[str] = Query(None, description="Search term"),
     current_user: UserResponse = Depends(get_current_active_user),
-    db: Client = Depends(get_db_client)
+    db: Client = Depends(get_user_authenticated_db_client)
 ):
     """List user's projects with pagination and optional search"""
     try:
@@ -101,7 +101,7 @@ async def list_projects(
 async def create_project(
     project_data: ProjectCreate,
     current_user: UserResponse = Depends(get_current_active_user),
-    db: Client = Depends(get_db_client)
+    db: Client = Depends(get_user_authenticated_db_client)
 ):
     """Create a new project"""
     try:
@@ -149,7 +149,7 @@ async def create_project(
 async def get_project(
     project_id: str,
     current_user: UserResponse = Depends(get_current_active_user),
-    db: Client = Depends(get_db_client)
+    db: Client = Depends(get_user_authenticated_db_client)
 ):
     """Get a specific project by ID"""
     try:
@@ -205,7 +205,7 @@ async def update_project(
     project_id: str,
     project_update: ProjectUpdate,
     current_user: UserResponse = Depends(get_current_active_user),
-    db: Client = Depends(get_db_client)
+    db: Client = Depends(get_user_authenticated_db_client)
 ):
     """Update a project"""
     try:
@@ -273,7 +273,7 @@ async def update_project(
 async def delete_project(
     project_id: str,
     current_user: UserResponse = Depends(get_current_active_user),
-    db: Client = Depends(get_db_client)
+    db: Client = Depends(get_user_authenticated_db_client)
 ):
     """Delete a project"""
     try:
@@ -304,7 +304,7 @@ async def delete_project(
 async def get_project_stats(
     project_id: str,
     current_user: UserResponse = Depends(get_current_active_user),
-    db: Client = Depends(get_db_client)
+    db: Client = Depends(get_user_authenticated_db_client)
 ):
     """Get project statistics"""
     try:
@@ -373,7 +373,7 @@ async def list_project_analyses(
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(50, ge=1, le=100, description="Items per page"),
     current_user: UserResponse = Depends(get_current_active_user),
-    db: Client = Depends(get_db_client)
+    db: Client = Depends(get_user_authenticated_db_client)
 ):
     """List analyses for a specific project"""
     try:
@@ -444,7 +444,7 @@ async def list_user_analyses(
     limit: int = Query(50, ge=1, le=100, description="Items per page"),
     project_id: Optional[str] = Query(None, description="Filter by project ID"),
     current_user: UserResponse = Depends(get_current_active_user),
-    db: Client = Depends(get_db_client)
+    db: Client = Depends(get_user_authenticated_db_client)
 ):
     """List all user's analyses with optional project filter"""
     try:

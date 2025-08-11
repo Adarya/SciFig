@@ -169,7 +169,7 @@ async def get_current_user_profile(
 async def update_current_user_profile(
     user_update: UserUpdate,
     current_user: UserResponse = Depends(get_current_active_user),
-    db: Client = Depends(get_db_client)
+    db: Client = Depends(get_admin_db_client)
 ):
     """Update current user profile"""
     try:
