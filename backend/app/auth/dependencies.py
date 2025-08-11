@@ -43,16 +43,35 @@ async def get_current_user(
         profile_response = db.table('users').select('*').eq('id', supabase_user.id).execute()
         
         if not profile_response.data:
-            # Create user profile if it doesn't exist using admin client
+            # Create user profile if it doesn't exist using admin client (upsert to handle race conditions)
+            # Extract full name from various possible fields in Google OAuth
+            full_name = (
+                supabase_user.user_metadata.get('full_name') or 
+                supabase_user.user_metadata.get('name') or 
+                supabase_user.user_metadata.get('display_name') or
+                None
+            )
+            
             profile_data = {
                 'id': supabase_user.id,
                 'email': supabase_user.email,
-                'full_name': supabase_user.user_metadata.get('full_name'),
+                'full_name': full_name,
                 'role': 'user'
             }
             
-            create_response = admin_db.table('users').insert(profile_data).execute()
-            user_profile = create_response.data[0]
+            try:
+                # Use upsert to handle race conditions during OAuth
+                create_response = admin_db.table('users').upsert(profile_data).execute()
+                user_profile = create_response.data[0]
+            except Exception as e:
+                # If upsert fails, try to fetch existing user (fallback for edge cases)
+                print(f"Upsert failed, attempting to fetch existing user: {e}")
+                retry_response = db.table('users').select('*').eq('id', supabase_user.id).execute()
+                if retry_response.data:
+                    user_profile = retry_response.data[0]
+                else:
+                    print(f"Authentication error: {e}")
+                    raise credentials_exception
         else:
             user_profile = profile_response.data[0]
         

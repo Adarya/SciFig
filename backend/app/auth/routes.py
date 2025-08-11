@@ -49,7 +49,7 @@ async def signup(
             'role': 'user'
         }
         
-        profile_response = admin_db.table('users').insert(profile_data).execute()
+        profile_response = admin_db.table('users').upsert(profile_data).execute()
         user_profile = profile_response.data[0]
         
         return UserResponse(
