@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from typing import Optional
 import pandas as pd
+import time
 
 from .models import AnalysisRequest, MultivariateAnalysisRequest, StatisticalResult, MultivariateResult
 from .services import StatisticalAnalysisService
@@ -10,6 +11,7 @@ from ..auth.dependencies import get_current_active_user, get_optional_user
 from ..auth.models import UserResponse
 from ..config.database import get_admin_db_client
 from ..utils.usage_limits import UsageLimiter
+from ..utils.logging import api_logger, get_request_id
 from supabase import Client
 
 router = APIRouter(prefix="/statistical", tags=["statistical analysis"])
@@ -23,10 +25,20 @@ async def analyze_data(
     admin_db: Client = Depends(get_admin_db_client)
 ):
     """Perform statistical analysis on the provided data"""
+    request_id = get_request_id(http_request)
+    user_id = current_user.id if current_user else None
+    start_time = time.time()
+    
+    # Log analysis start
+    api_logger.log_analysis_start(
+        analysis_type=request.analysis_type,
+        user_id=user_id,
+        request_id=request_id
+    )
+    
     try:
         # Check usage limits for users
         limiter = UsageLimiter(admin_db)
-        user_id = current_user.id if current_user else None
         
         allowed = await limiter.check_and_increment_usage(
             http_request, 
@@ -35,6 +47,14 @@ async def analyze_data(
         )
         
         if not allowed:
+            # Log usage limit hit
+            api_logger.log_usage_limit_hit(
+                feature_type='statistical_analysis',
+                user_id=user_id,
+                ip_address=getattr(http_request.client, 'host', None),
+                request_id=request_id
+            )
+            
             if current_user:
                 limit = limiter.LIMITS['authenticated'].get('statistical_analysis', 3)
                 detail = f"Usage limit exceeded. Users are limited to {limit} statistical analyses. Please upgrade your plan for more access."
@@ -63,17 +83,56 @@ async def analyze_data(
             event_var=request.event_variable
         )
         
+        # Log successful completion
+        processing_time = (time.time() - start_time) * 1000
+        api_logger.log_analysis_complete(
+            analysis_type=request.analysis_type,
+            success=True,
+            processing_time_ms=processing_time,
+            user_id=user_id,
+            request_id=request_id
+        )
+        
         return result
         
     except HTTPException:
-        # Re-raise HTTP exceptions (like usage limit errors)
+        # Log failed completion for HTTP exceptions (like usage limits)
+        processing_time = (time.time() - start_time) * 1000
+        api_logger.log_analysis_complete(
+            analysis_type=request.analysis_type,
+            success=False,
+            processing_time_ms=processing_time,
+            user_id=user_id,
+            request_id=request_id,
+            error_message="HTTP exception (usage limit or validation error)"
+        )
         raise
     except ValueError as e:
+        # Log failed completion for validation errors
+        processing_time = (time.time() - start_time) * 1000
+        api_logger.log_analysis_complete(
+            analysis_type=request.analysis_type,
+            success=False,
+            processing_time_ms=processing_time,
+            user_id=user_id,
+            request_id=request_id,
+            error_message=str(e)
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
     except Exception as e:
+        # Log failed completion for unexpected errors
+        processing_time = (time.time() - start_time) * 1000
+        api_logger.log_analysis_complete(
+            analysis_type=request.analysis_type,
+            success=False,
+            processing_time_ms=processing_time,
+            user_id=user_id,
+            request_id=request_id,
+            error_message=str(e)
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Analysis failed: {str(e)}"
