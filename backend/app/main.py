@@ -3,6 +3,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 import time
 import os
@@ -107,38 +108,17 @@ async def api_root():
         "api_version": "v1"
     }
 
-# Add a root endpoint that doesn't conflict with static files
+# Simple root endpoint for API info
 @app.get("/", include_in_schema=False)
-async def root_redirect():
-    """Root endpoint - redirect to frontend if available"""
-    static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
-    if os.path.exists(static_dir):
-        # Serve index.html for the root path
-        from fastapi.responses import FileResponse
-        return FileResponse(os.path.join(static_dir, "index.html"))
-    else:
-        return {
-            "message": f"Welcome to {settings.app_name}",
-            "version": settings.app_version,
-            "status": "running",
-            "frontend": "not_built",
-            "docs": "/docs"
-        }
-
-# Serve static files ONLY for specific paths to avoid conflicts
-static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
-if os.path.exists(static_dir):
-    # Mount static files for assets (js, css, images)
-    app.mount("/assets", StaticFiles(directory=os.path.join(static_dir, "assets")), name="assets")
-    # Catch-all for SPA routing - this should be last
-    @app.get("/{path:path}", include_in_schema=False)
-    async def serve_spa(path: str):
-        """Serve SPA for all unmatched routes"""
-        file_path = os.path.join(static_dir, path)
-        if os.path.isfile(file_path):
-            return FileResponse(file_path)
-        # Return index.html for SPA routing
-        return FileResponse(os.path.join(static_dir, "index.html"))
+async def root():
+    """Root endpoint"""
+    return {
+        "message": f"Welcome to {settings.app_name}",
+        "version": settings.app_version,
+        "status": "running",
+        "docs": "/docs",
+        "health": "/health"
+    }
 
 
 @app.get("/health")
