@@ -11,9 +11,15 @@ import {
   Activity,
   PieChart,
   Clock,
-  Users
+  Users,
+  BookOpen,
+  Sparkles,
+  Layout
 } from 'lucide-react';
 import { ParsedData } from '../utils/csvParser';
+import { GeminiAnalysisAI } from '../utils/geminiAI';
+import TemplateLibrary from './TemplateLibrary';
+import { apiClient, FigureTemplate, PlotSuggestion } from '../services/apiClient';
 
 interface AnalysisSelectionProps {
   data: ParsedData;
@@ -21,8 +27,13 @@ interface AnalysisSelectionProps {
   groupVariable: string;
   timeVariable?: string;
   eventVariable?: string;
+  predictorVariables?: string[];
   onAnalysisSelected: (config: any) => void;
   onBack: () => void;
+  disabled?: boolean;
+  user?: any;
+  onLogin?: (mode?: 'signin' | 'signup') => void;
+  onNavigate?: (view: string) => void;
 }
 
 const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({ 
@@ -31,16 +42,29 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
   groupVariable, 
   timeVariable,
   eventVariable,
+  predictorVariables = [],
   onAnalysisSelected, 
-  onBack 
+  onBack,
+  disabled,
+  user,
+  onLogin,
+  onNavigate
 }) => {
   const [selectedAnalysis, setSelectedAnalysis] = useState('');
   const [naturalLanguageQuery, setNaturalLanguageQuery] = useState('');
+  const [isAIProcessing, setIsAIProcessing] = useState(false);
+  const [aiRecommendation, setAiRecommendation] = useState<string | null>(null);
+  
+  // Template and AI suggestion state
+  const [showTemplateLibrary, setShowTemplateLibrary] = useState(false);
+  const [aiPlotSuggestions, setAiPlotSuggestions] = useState<PlotSuggestion[]>([]);
+  const [isLoadingAISuggestions, setIsLoadingAISuggestions] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<FigureTemplate | null>(null);
 
   // Determine data types and characteristics
-  const getColumnType = (columnName: string): string => {
+  const getColumnType = (columnName: string): 'categorical' | 'continuous' => {
     const sampleValues = data.preview.map(row => row[columnName]).filter(val => val != null);
-    if (sampleValues.length === 0) return 'unknown';
+    if (sampleValues.length === 0) return 'categorical';
     
     const isNumeric = sampleValues.every(val => !isNaN(Number(val)));
     if (isNumeric) {
@@ -127,6 +151,40 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
       }
     }
 
+    // Add multivariate analysis if predictor variables are selected
+    if (predictorVariables.length > 0) {
+      let analysisName = 'Multivariate Analysis';
+      let description = `Analyze ${predictorVariables.length} predictor variable${predictorVariables.length > 1 ? 's' : ''} simultaneously`;
+      let effectSize = 'Effect estimates';
+      
+      // Determine model type based on outcome variable
+      if (outcomeType === 'continuous') {
+        analysisName = 'Multiple Linear Regression';
+        description = `Linear regression with ${predictorVariables.length} predictor${predictorVariables.length > 1 ? 's' : ''}`;
+        effectSize = 'Beta coefficients';
+      } else if (outcomeType === 'categorical') {
+        analysisName = 'Logistic Regression';
+        description = `Logistic regression with ${predictorVariables.length} predictor${predictorVariables.length > 1 ? 's' : ''}`;
+        effectSize = 'Odds ratios';
+      } else if (timeVariable && eventVariable) {
+        analysisName = 'Cox Proportional Hazards';
+        description = `Survival analysis with ${predictorVariables.length} covariate${predictorVariables.length > 1 ? 's' : ''}`;
+        effectSize = 'Hazard ratios';
+      }
+      
+      analyses.push({
+        id: 'multivariate_analysis',
+        name: analysisName,
+        description: description,
+        reason: `${predictorVariables.length} predictor variable${predictorVariables.length > 1 ? 's' : ''} selected`,
+        icon: Target,
+        assumptions: ['Sufficient sample size', 'No multicollinearity'],
+        effectSize: effectSize,
+        recommended: true,
+        isMultivariate: true
+      });
+    }
+
     // Auto-select first recommended analysis
     if (analyses.length > 0 && !selectedAnalysis) {
       setSelectedAnalysis(analyses[0].id);
@@ -159,6 +217,19 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
       }
     }
 
+    // Always include Kaplan-Meier as an option if not already in recommended
+    const hasKaplanMeier = recommendedAnalyses.some(a => a.id === 'kaplan_meier');
+    if (!hasKaplanMeier) {
+      analyses.push({
+        id: 'kaplan_meier',
+        name: 'Kaplan-Meier Survival Analysis',
+        description: 'Time-to-event analysis with survival curves',
+        icon: Clock,
+        assumptions: ['Time and event variables required']
+      });
+    }
+
+
     return analyses;
   };
 
@@ -168,6 +239,32 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
   const handleRunAnalysis = () => {
     const selectedConfig = [...recommendedAnalyses, ...otherAnalyses].find(a => a.id === selectedAnalysis);
     
+    // For Kaplan-Meier analysis, redirect to dedicated page
+    if (selectedAnalysis === 'kaplan_meier' && onNavigate) {
+      // Store only the configuration (without large data) in sessionStorage
+      const analysisConfig = {
+        type: selectedAnalysis,
+        config: selectedConfig,
+        naturalLanguageQuery,
+        outcomeVariable,
+        groupVariable,
+        timeVariable,
+        eventVariable,
+        outcomeType,
+        groupType
+      };
+      
+      // Store config without data
+      sessionStorage.setItem('kaplanMeierConfig', JSON.stringify(analysisConfig));
+      
+      // Store data separately with a temporary global variable (will be cleaned up on page reload)
+      (window as any).kaplanMeierData = data.data;
+      
+      onNavigate('kaplan-meier');
+      return;
+    }
+    
+    // For other analyses, continue with normal flow
     onAnalysisSelected({
       type: selectedAnalysis,
       config: selectedConfig,
@@ -176,27 +273,107 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
       groupVariable,
       timeVariable,
       eventVariable,
+      predictorVariables: selectedAnalysis === 'multivariate_analysis' ? predictorVariables : undefined,
       data: data.data,
       outcomeType,
       groupType
     });
   };
 
-  const handleNaturalLanguageSubmit = () => {
-    const query = naturalLanguageQuery.toLowerCase();
+  // Handler for template selection - just store the template for future use
+  const handleTemplateSelect = (template: FigureTemplate) => {
+    try {
+      setSelectedTemplate(template);
+      setShowTemplateLibrary(false);
+      
+      console.log(`✅ Template selected: ${template.name} (${template.plot_type}) - Available for future integration`);
+      
+      // Template is now selected but doesn't affect the current analysis flow
+      // This will be integrated later when the template system is ready
+      
+    } catch (error) {
+      console.error('Error handling template selection:', error);
+    }
+  };
+
+  // Handler for AI plot suggestions
+  const loadAIPlotSuggestions = async () => {
+    if (!data.data || data.data.length === 0) return;
     
-    if (query.includes('survival') || query.includes('time') || query.includes('kaplan')) {
-      setSelectedAnalysis('kaplan_meier');
-    } else if (query.includes('association') || query.includes('relationship')) {
-      if (outcomeType === 'categorical' && groupType === 'categorical') {
-        setSelectedAnalysis('chi_square');
+    setIsLoadingAISuggestions(true);
+    try {
+      const response = await apiClient.ai.suggestPlots(data.data, undefined, 5);
+      setAiPlotSuggestions(response.suggestions);
+      console.log('AI Plot Suggestions loaded:', response);
+    } catch (error) {
+      console.error('Failed to load AI plot suggestions:', error);
+    } finally {
+      setIsLoadingAISuggestions(false);
+    }
+  };
+
+  const handleNaturalLanguageSubmit = async () => {
+    if (!naturalLanguageQuery.trim()) {
+      alert('Please enter a research question first.');
+      return;
+    }
+
+    setIsAIProcessing(true);
+    setAiRecommendation(null);
+    
+    try {
+      // Prepare data characteristics for AI
+      const dataCharacteristics = {
+        outcomeVariable,
+        groupVariable,
+        outcomeType,
+        groupType,
+        nGroups,
+        groups,
+        sampleSize: data.rows,
+        timeVariable,
+        eventVariable
+      };
+      
+      // Get AI recommendation from Gemini
+      const recommendation = await GeminiAnalysisAI.getAnalysisRecommendation(
+        naturalLanguageQuery,
+        dataCharacteristics
+      );
+      
+      // Apply the AI recommendation
+      setSelectedAnalysis(recommendation.recommendedTest);
+      setAiRecommendation(
+        `🤖 AI Recommendation (${Math.round(recommendation.confidence * 100)}% confidence): ${recommendation.reasoning}`
+      );
+      
+      console.log('AI Recommendation:', recommendation);
+      
+    } catch (error) {
+      console.error('AI recommendation failed:', error);
+      
+      // Fallback to rule-based system
+      const query = naturalLanguageQuery.toLowerCase();
+      
+      if (query.includes('survival') || query.includes('time') || query.includes('kaplan')) {
+        setSelectedAnalysis('kaplan_meier');
+      } else if (query.includes('correlation') || query.includes('association')) {
+        if (outcomeType === 'categorical' && groupType === 'categorical') {
+          setSelectedAnalysis('chi_square');
+        }
+      } else if (query.includes('compare') && nGroups === 2) {
+        setSelectedAnalysis('independent_ttest');
+      } else if (query.includes('compare') && nGroups > 2) {
+        setSelectedAnalysis('one_way_anova');
+      } else if (query.includes('non-parametric')) {
+        setSelectedAnalysis(nGroups === 2 ? 'mann_whitney_u' : 'kruskal_wallis');
+      } else if (recommendedAnalyses.length > 0) {
+        setSelectedAnalysis(recommendedAnalyses[0].id);
       }
-    } else if (query.includes('compare') && nGroups === 2) {
-      setSelectedAnalysis('independent_ttest');
-    } else if (query.includes('all groups') || (query.includes('compare') && nGroups > 2)) {
-      setSelectedAnalysis('one_way_anova');
-    } else if (query.includes('non-parametric') || query.includes('not normal')) {
-      setSelectedAnalysis(nGroups === 2 ? 'mann_whitney_u' : 'kruskal_wallis');
+      
+      setAiRecommendation('⚠️ AI service unavailable. Using fallback analysis selection.');
+    } finally {
+      setIsAIProcessing(false);
     }
   };
 
@@ -226,17 +403,182 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
               <textarea
                 value={naturalLanguageQuery}
                 onChange={(e) => setNaturalLanguageQuery(e.target.value)}
-                placeholder={`e.g., 'I want to compare ${outcomeVariable} between ${groups.join(' and ')}' or 'Test survival differences'`}
+                placeholder={`e.g., 'I want multivariate analysis with forest plot using ${outcomeVariable}' or 'Compare survival between groups' or 'Show correlation with effect sizes' or 'Forest plot with multiple predictors'`}
                 className="w-full h-24 border border-gray-300 rounded-lg px-4 py-3 resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <button 
                 onClick={handleNaturalLanguageSubmit}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                disabled={isAIProcessing || !naturalLanguageQuery.trim()}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
               >
-                Get AI Recommendation
+                {isAIProcessing ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>AI Analyzing...</span>
+                  </>
+                ) : (
+                  <>
+                    <Brain className="h-4 w-4" />
+                    <span>Get AI Recommendation</span>
+                  </>
+                )}
+              </button>
+              
+              {/* AI Status Indicator */}
+              <div className="mt-2 p-2 rounded-lg border text-xs">
+                {GeminiAnalysisAI.isConfigured() ? (
+                  <div className="flex items-center space-x-2 text-green-700 bg-green-50 border-green-200">
+                    <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                    <span><strong>Gemini AI Active:</strong> Real AI recommendations enabled</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2 text-orange-700 bg-orange-50 border-orange-200">
+                    <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
+                    <span><strong>Fallback Mode:</strong> Using rule-based analysis (add API key for AI)</span>
+                  </div>
+                )}
+              </div>
+
+              {/* AI Recommendation Display */}
+              {aiRecommendation && (
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">{aiRecommendation}</p>
+                  {!GeminiAnalysisAI.isConfigured() && (
+                    <details className="mt-2">
+                      <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800">
+                        💡 Enable full AI capabilities
+                      </summary>
+                      <div className="mt-2 text-xs text-gray-600 whitespace-pre-line">
+                        {GeminiAnalysisAI.getSetupInstructions()}
+                      </div>
+                    </details>
+                  )}
+                </div>
+              )}
+            </div>
+          </motion.div>
+
+          {/* Quick Access Tools */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
+          >
+            <div className="flex items-center space-x-3 mb-4">
+              <Layout className="h-6 w-6 text-purple-600" />
+              <h3 className="text-lg font-semibold text-gray-900">🚀 Quick Access Tools</h3>
+              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">New Features</span>
+            </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              {/* Template Library */}
+              <button
+                onClick={() => setShowTemplateLibrary(true)}
+                className="p-4 border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-all text-left group"
+              >
+                <div className="flex items-center space-x-3 mb-2">
+                  <BookOpen className="h-5 w-5 text-purple-600" />
+                  <h4 className="font-medium text-gray-900 group-hover:text-purple-700">Template Library</h4>
+                </div>
+                <p className="text-sm text-gray-600">Browse pre-configured templates for publication-ready figures</p>
+                {selectedTemplate && (
+                  <div className="mt-2 text-xs text-purple-700 bg-purple-50 px-2 py-1 rounded">
+                    ✓ Template saved: {selectedTemplate.name} (for future integration)
+                  </div>
+                )}
+              </button>
+
+              {/* AI Plot Suggestions */}
+              <button
+                onClick={loadAIPlotSuggestions}
+                disabled={isLoadingAISuggestions}
+                className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-all text-left group disabled:opacity-50"
+              >
+                <div className="flex items-center space-x-3 mb-2">
+                  <Sparkles className="h-5 w-5 text-blue-600" />
+                  <h4 className="font-medium text-gray-900 group-hover:text-blue-700">
+                    {isLoadingAISuggestions ? 'Loading...' : '🤖 Intelligent Plot Recommendations'}
+                  </h4>
+                </div>
+                <p className="text-sm text-gray-600">Advanced AI analyzes your data to suggest optimal visualizations</p>
+                {aiPlotSuggestions.length > 0 && (
+                  <div className="mt-2 text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded">
+                    {aiPlotSuggestions.length} suggestions available
+                  </div>
+                )}
               </button>
             </div>
           </motion.div>
+
+          {/* AI Plot Suggestions Display */}
+          {aiPlotSuggestions.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 p-6"
+            >
+              <div className="flex items-center space-x-3 mb-4">
+                <Sparkles className="h-6 w-6 text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-900">🤖 Intelligent Plot Recommendations</h3>
+                <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full">AI-Powered</span>
+              </div>
+              <div className="space-y-3">
+                {aiPlotSuggestions.slice(0, 3).map((suggestion, index) => (
+                  <div
+                    key={index}
+                    className="bg-white rounded-lg p-4 border border-blue-200 hover:border-blue-300 transition-colors cursor-pointer"
+                    onClick={() => {
+                      // Map plot type to analysis if possible
+                      const plotAnalysisMapping: { [key: string]: string } = {
+                        'violin_plot': 'independent_ttest',
+                        'boxplot': 'one_way_anova',
+                        'survival_plot': 'kaplan_meier',
+                        'heatmap': 'correlation_analysis',
+                        'volcano_plot': 'volcano_plot',
+                        'scatter_plot': 'correlation_analysis'
+                      };
+                      const mappedAnalysis = plotAnalysisMapping[suggestion.plot_type];
+                      if (mappedAnalysis) {
+                        setSelectedAnalysis(mappedAnalysis);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium text-gray-900 capitalize">
+                        {suggestion.plot_type.replace(/_/g, ' ')}
+                      </h4>
+                      <div className="flex items-center space-x-2">
+                        <div className={`w-2 h-2 rounded-full ${
+                          suggestion.score > 0.8 ? 'bg-green-500' :
+                          suggestion.score > 0.6 ? 'bg-yellow-500' : 'bg-gray-400'
+                        }`}></div>
+                        <span className="text-xs text-gray-500">
+                          {Math.round(suggestion.score * 100)}% confidence
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-sm text-gray-600 mb-2">
+                      {suggestion.rationale.slice(0, 2).map((reason, idx) => (
+                        <div key={idx} className="flex items-start space-x-1">
+                          <span className="text-blue-600 mt-1">•</span>
+                          <span>{reason}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {suggestion.required_variables.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {suggestion.required_variables.map(variable => (
+                          <span key={variable} className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs">
+                            {variable.replace(/_/g, ' ')}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
 
           {/* Recommended Analyses */}
           {recommendedAnalyses.length > 0 && (
@@ -398,9 +740,9 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
             transition={{ delay: 0.2 }}
             className="bg-gradient-to-br from-green-50 to-blue-50 rounded-xl border border-green-200 p-6"
           >
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">💡 AI Recommendation</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">📊 Basic Analysis Suggestions</h3>
             <div className="space-y-3 text-sm text-gray-700">
-              <p>Based on your data structure:</p>
+              <p>Rule-based recommendations from your data types:</p>
               <ul className="space-y-1 ml-4">
                 {timeVariable && eventVariable && (
                   <>
@@ -450,6 +792,16 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
           <ArrowRight className="h-4 w-4" />
         </button>
       </div>
+
+      {/* Template Library Modal */}
+      {showTemplateLibrary && (
+        <TemplateLibrary
+          data={data.data}
+          onTemplateSelect={handleTemplateSelect}
+          onClose={() => setShowTemplateLibrary(false)}
+          analysisGoal={naturalLanguageQuery}
+        />
+      )}
     </div>
   );
 };

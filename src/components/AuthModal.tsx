@@ -11,7 +11,8 @@ import {
   AlertCircle,
   CheckCircle
 } from 'lucide-react';
-import { useAuth } from '../hooks/useAuth';
+// Use only the API auth provider for consistency
+import { useAuth } from '../providers/ApiAuthProvider';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -31,8 +32,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode = 's
   const [localError, setLocalError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  // Use only the API auth provider
   const { signIn, signUp, signInWithGoogle, resetPassword, loading, error } = useAuth();
-
+  
+  // Combine auth methods to update both systems
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);

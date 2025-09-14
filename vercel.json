@@ -1,0 +1,49 @@
+{
+  "buildCommand": "yarn build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "installCommand": "yarn install",
+  "devCommand": "yarn dev",
+  "env": {
+    "VITE_API_BASE_URL": "https://your-backend-url.railway.app/api/v1"
+  },
+  "build": {
+    "env": {
+      "VITE_API_BASE_URL": "https://your-backend-url.railway.app/api/v1"
+    }
+  },
+  "functions": {
+    "app/api/**/*.ts": {
+      "runtime": "@vercel/node"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/v1/(.*)",
+      "destination": "https://your-backend-url.railway.app/api/v1/$1"
+    },
+    {
+      "source": "/(analyze|analyze_multivariate|generate_display_figure|generate_publication_figure|generate_code_edit_figure)",
+      "destination": "https://your-backend-url.railway.app/$1"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, PUT, DELETE, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "X-Requested-With, Content-Type, Authorization"
+        }
+      ]
+    }
+  ]
+}

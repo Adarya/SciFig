@@ -9,13 +9,15 @@ import {
   CheckCircle,
   Settings,
   Clock,
-  Activity
+  Activity,
+  Target
 } from 'lucide-react';
 import { ParsedData } from '../utils/csvParser';
+import { MultivariateVariableSelector } from './MultivaritateVariableSelector';
 
 interface DataPreviewProps {
   data: ParsedData;
-  onNext: (outcomeVar: string, groupVar: string, timeVar?: string, eventVar?: string) => void;
+  onNext: (outcomeVar: string, groupVar: string, timeVar?: string, eventVar?: string, predictorVars?: string[]) => void;
   onBack: () => void;
 }
 
@@ -25,6 +27,8 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onNext, onBack }) => {
   const [groupVariable, setGroupVariable] = useState('');
   const [timeVariable, setTimeVariable] = useState('');
   const [eventVariable, setEventVariable] = useState('');
+  const [showMultivariateOptions, setShowMultivariateOptions] = useState(false);
+  const [predictorVariables, setPredictorVariables] = useState<string[]>([]);
 
   // Auto-detect likely variables
   React.useEffect(() => {
@@ -144,7 +148,13 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onNext, onBack }) => {
 
   const handleNext = () => {
     if (canProceed) {
-      onNext(outcomeVariable, groupVariable, timeVariable || undefined, eventVariable || undefined);
+      onNext(
+        outcomeVariable, 
+        groupVariable, 
+        timeVariable || undefined, 
+        eventVariable || undefined,
+        predictorVariables.length > 0 ? predictorVariables : undefined
+      );
     }
   };
 
@@ -336,6 +346,62 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onNext, onBack }) => {
               )}
             </div>
           </motion.div>
+
+          {/* Multivariate Analysis Toggle */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                <Target className="h-5 w-5 text-purple-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Advanced Analysis Options</h3>
+              </div>
+              <button
+                onClick={() => setShowMultivariateOptions(!showMultivariateOptions)}
+                className={`px-4 py-2 rounded-lg transition-colors ${
+                  showMultivariateOptions 
+                    ? 'bg-purple-100 text-purple-700 border border-purple-300' 
+                    : 'bg-gray-100 text-gray-700 border border-gray-300'
+                }`}
+              >
+                {showMultivariateOptions ? 'Hide' : 'Show'} Multivariate Analysis
+              </button>
+            </div>
+            
+            <p className="text-sm text-gray-600 mb-4">
+              Enable multivariate analysis to examine relationships between multiple predictor variables and your outcome.
+            </p>
+
+            {showMultivariateOptions && predictorVariables.length > 0 && (
+              <div className="mt-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <Target className="h-4 w-4 text-purple-600" />
+                  <span className="text-sm font-medium text-purple-800">
+                    Multivariate Analysis Enabled
+                  </span>
+                </div>
+                <p className="text-xs text-purple-700 mt-1">
+                  {predictorVariables.length} predictor variable{predictorVariables.length > 1 ? 's' : ''} selected. 
+                  Regression analysis and forest plots will be available.
+                </p>
+              </div>
+            )}
+          </motion.div>
+
+          {/* Multivariate Variable Selector */}
+          {showMultivariateOptions && (
+            <MultivariateVariableSelector
+              columns={data.columns}
+              outcomeVariable={outcomeVariable}
+              selectedPredictors={predictorVariables}
+              onPredictorsChange={setPredictorVariables}
+              timeVariable={timeVariable}
+              eventVariable={eventVariable}
+            />
+          )}
         </div>
 
         {/* Configuration Panel */}

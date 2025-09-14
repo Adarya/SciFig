@@ -7,14 +7,115 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Node.js dependencies and build artifacts
 node_modules
 dist
 dist-ssr
 *.local
 
-# Editor directories and files
+# Python bytecode and cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Python virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.conda/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-shm
+*.db-wal
+scifig.db*
+backend/scifig.db*
+backend/*.db
+backend/*.sqlite*
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.coverage.*
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+backend/.env*
+*.env
+
+# Alembic migration artifacts
+backend/alembic/versions/*.pyc
+
+# Uploaded files and temporary data
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/static/figures/*
+!backend/static/figures/.gitkeep
+backend/temp/
+backend/tmp/
+
+# IDE and editor files
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
 .idea
 .DS_Store
 *.suo
@@ -22,4 +123,46 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-.env
+*.swp
+*.swo
+*~
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Docker
+.dockerignore
+
+# Conda
+.conda
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Redis dumps
+dump.rdb
+
+# Local configuration overrides
+config.local.py
+config.local.json
+
+# Backup files
+*.bak
+*.backup
+*.orig
+
+# Temporary files
+*.tmp
+*.temp
+backend/scifig_env/
+
+# Backend test files
+backend/test_*.json
+backend/*test*.py
+backend/tests/
+# Legacy Files\nbackend/legacy/
+.pymon

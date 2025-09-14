@@ -1,0 +1,92 @@
+services:
+  # Backend API Service
+  - type: web
+    name: scifig-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: starter # or standard for more resources
+    region: oregon # or your preferred region
+    branch: main # or your deployment branch
+    buildFilter:
+      paths:
+        - backend/**
+    envVars:
+      - key: APP_NAME
+        value: SciFig AI Statistical Engine
+      - key: APP_VERSION
+        value: 2.0.0
+      - key: DEBUG
+        value: false
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 8000
+      - key: ALLOWED_ORIGINS
+        value: https://scifig-frontend.onrender.com,http://localhost:5173
+      - key: MAX_FILE_SIZE
+        value: 52428800
+      - key: UPLOAD_DIR
+        value: uploads
+      - key: MAX_DATASET_SIZE
+        value: 100000
+      - key: CACHE_RESULTS
+        value: true
+      # Add these from your environment or Render dashboard:
+      - key: SUPABASE_URL
+        fromDatabase: # Set in Render dashboard
+          name: scifig-secrets
+          property: SUPABASE_URL
+      - key: SUPABASE_ANON_KEY
+        fromDatabase:
+          name: scifig-secrets
+          property: SUPABASE_ANON_KEY
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        fromDatabase:
+          name: scifig-secrets
+          property: SUPABASE_SERVICE_ROLE_KEY
+      - key: SECRET_KEY
+        fromDatabase:
+          name: scifig-secrets
+          property: SECRET_KEY
+    
+  # Frontend Static Site
+  - type: web
+    name: scifig-frontend
+    runtime: static
+    buildCommand: yarn build
+    staticPublishPath: ./dist
+    pullRequestPreviewsEnabled: false
+    branch: main
+    buildFilter:
+      paths:
+        - src/**
+        - public/**
+        - package.json
+        - yarn.lock
+        - vite.config.ts
+        - tsconfig.json
+        - tailwind.config.js
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://scifig-backend.onrender.com/api/v1
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+    routes:
+      - type: rewrite
+        source: /api/v1/*
+        destination: https://scifig-backend.onrender.com/api/v1/*
+      - type: rewrite  
+        source: /analyze
+        destination: https://scifig-backend.onrender.com/analyze
+      - type: rewrite
+        source: /analyze_multivariate
+        destination: https://scifig-backend.onrender.com/analyze_multivariate
+      - type: rewrite
+        source: /generate_*_figure
+        destination: https://scifig-backend.onrender.com/generate_*_figure
