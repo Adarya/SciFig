@@ -69,9 +69,18 @@ app = FastAPI(
 )
 
 # Add CORS middleware
+# In production (Railway), be more permissive with CORS
+cors_origins = settings.cors_origins
+if not settings.debug:
+    # Production: allow Railway domains and common origins
+    cors_origins = ["*"]  # Temporarily allow all for Railway debugging
+    print(f"🔧 Production CORS: Allowing all origins for Railway deployment")
+else:
+    print(f"🔧 Development CORS: {cors_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
