@@ -13,7 +13,13 @@ RUN yarn install --frozen-lockfile
 # Copy source code
 COPY . .
 
-# Build frontend
+# Set build-time environment variables for frontend
+ARG VITE_API_BASE_URL
+ARG VITE_APP_NAME
+ARG VITE_APP_VERSION
+ARG VITE_ENABLE_DEBUG=false
+
+# Build frontend with environment variables
 RUN yarn build
 
 # Backend stage

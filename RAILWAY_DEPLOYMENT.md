@@ -31,16 +31,16 @@ Deploy your entire SciFig application (frontend + backend) to Railway in **under
    - Build and deploy your application
    - Provide you with a live URL
 
-### Step 3: Configure Environment Variables (3 minutes)
-In your Railway dashboard, go to Variables and add:
+### Step 3: Configure Backend Environment Variables (3 minutes) 🔒
+In your Railway dashboard, go to **Variables** tab and add these **BACKEND** variables:
 
 ```env
-# Supabase Configuration (from your Supabase dashboard)
+# 🔒 SENSITIVE: Supabase Configuration (from your Supabase dashboard)
 SUPABASE_URL=https://your-project-id.supabase.co
 SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
-# JWT Secret (generated above)
+# 🔒 SENSITIVE: JWT Secret (generated above)
 SECRET_KEY=your-32-character-secret-key-here
 
 # Application Settings
@@ -50,8 +50,8 @@ DEBUG=false
 HOST=0.0.0.0
 PORT=8000
 
-# CORS - Railway will auto-generate your domain
-ALLOWED_ORIGINS=https://your-app.railway.app
+# CORS - Railway auto-generates your domain
+ALLOWED_ORIGINS=https://${{RAILWAY_PUBLIC_DOMAIN}}
 
 # File Upload Settings
 MAX_FILE_SIZE=52428800
@@ -59,6 +59,8 @@ UPLOAD_DIR=uploads
 MAX_DATASET_SIZE=100000
 CACHE_RESULTS=true
 ```
+
+**Frontend variables are automatically configured** via `railway.json` during build! 🎉
 
 ### Step 4: Deploy and Test (2 minutes)
 1. **Railway auto-deploys** after you set environment variables
