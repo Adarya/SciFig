@@ -108,29 +108,36 @@ async def api_root():
         "api_version": "v1"
     }
 
-# Check for static files and conditionally set up serving
+# Static file serving setup (after all API routes)
 static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+print(f"🔍 Checking for static files at: {static_dir}")
 
 if os.path.exists(static_dir) and os.path.exists(os.path.join(static_dir, "index.html")):
-    # Production mode - serve frontend + API
+    print(f"✅ Static files found - enabling full-stack mode")
     
-    # Mount static assets first  
+    # Mount static assets directory
     assets_dir = os.path.join(static_dir, "assets")
     if os.path.exists(assets_dir):
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+        print(f"✅ Mounted assets directory: /assets")
     
-    # Serve favicon and other root-level static files
-    @app.get("/vite.svg", include_in_schema=False)
+    # Serve common static files
+    @app.api_route("/favicon.ico", methods=["GET", "HEAD"], include_in_schema=False)
     async def favicon():
+        favicon_path = os.path.join(static_dir, "favicon.ico")
+        if os.path.exists(favicon_path):
+            return FileResponse(favicon_path)
+        # Fallback to vite.svg
         return FileResponse(os.path.join(static_dir, "vite.svg"))
-    
-    print(f"✅ Static files found at {static_dir}, serving frontend + API")
-    
+        
+    @app.api_route("/vite.svg", methods=["GET", "HEAD"], include_in_schema=False)
+    async def vite_logo():
+        return FileResponse(os.path.join(static_dir, "vite.svg"))
+
 else:
-    # Development mode - API only
-    print(f"🔧 No static files at {static_dir}, API-only mode")
+    print(f"🔧 No static files found - API-only mode")
     
-    @app.get("/", include_in_schema=False) 
+    @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
     async def root_dev():
         """Root endpoint - development mode""" 
         return {
@@ -140,7 +147,8 @@ else:
             "mode": "api_only",
             "frontend": "not_built", 
             "docs": "/docs",
-            "health": "/health"
+            "health": "/health",
+            "note": "Frontend not built - run 'yarn build' and restart"
         }
 
 
@@ -307,23 +315,27 @@ async def readiness_check():
         raise HTTPException(status_code=503, detail=f"Service not ready: {str(e)}")
 
 
-# SPA catch-all routes (MUST BE LAST - after all API routes)
+# SPA routes (MUST BE LAST - after all API routes)
 if os.path.exists(static_dir) and os.path.exists(os.path.join(static_dir, "index.html")):
     
-    @app.get("/", include_in_schema=False)
+    @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
     async def serve_frontend_root():
-        """Serve the frontend React app at root"""
+        """Serve the React app at root"""
         return FileResponse(os.path.join(static_dir, "index.html"))
     
-    @app.get("/{path:path}", include_in_schema=False)
-    async def spa_catch_all(path: str):
-        """SPA catch-all - serve index.html for all unmatched routes"""
+    @app.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
+    async def spa_catch_all(full_path: str):
+        """SPA catch-all for React Router - serves index.html for all unmatched routes"""
+        # Skip API routes (they should have been handled already)
+        if full_path.startswith(("api/", "health", "docs", "openapi.json", "redoc")):
+            raise HTTPException(404, "API endpoint not found")
+            
         # Check if it's a specific static file first
-        file_path = os.path.join(static_dir, path)
+        file_path = os.path.join(static_dir, full_path)
         if os.path.isfile(file_path):
             return FileResponse(file_path)
         
-        # For everything else, serve index.html (React Router will handle it)
+        # For everything else (React routes), serve index.html
         return FileResponse(os.path.join(static_dir, "index.html"))
 
 
