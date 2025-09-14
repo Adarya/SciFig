@@ -8,6 +8,15 @@ import { logger } from '../utils/logger';
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const API_PREFIX = '/api/v1';
 
+// Debug logging for environment variables
+console.log('🔧 API Configuration:', {
+  VITE_API_URL: import.meta.env.VITE_API_URL,
+  API_BASE_URL,
+  FULL_API_URL: `${API_BASE_URL}${API_PREFIX}`,
+  NODE_ENV: import.meta.env.NODE_ENV,
+  MODE: import.meta.env.MODE
+});
+
 // =====================================
 // Type Definitions
 // =====================================
