@@ -49,8 +49,7 @@ COPY backend/ ./
 # Copy built frontend
 COPY --from=frontend-build /app/frontend/dist ./static
 
-# Update FastAPI to serve static files
-RUN pip install aiofiles
+# aiofiles now included in requirements.txt
 
 # Create uploads directory
 RUN mkdir -p uploads

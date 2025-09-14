@@ -31,6 +31,7 @@ async def lifespan(app: FastAPI):
     logger = StructuredLogger()
     
     # Startup
+    print(f"🚀 Starting {settings.app_name} v{settings.app_version}")
     logger.info(
         "Application starting",
         app_name=settings.app_name,
@@ -38,18 +39,23 @@ async def lifespan(app: FastAPI):
         environment="development" if settings.debug else "production"
     )
     
+    print("🔗 Attempting database initialization...")
     try:
         await db_manager.init_database()
         logger.info("Database initialization completed")
+        print("✅ Database initialization completed")
     except Exception as e:
         logger.error("Database initialization failed", error=e)
-        logger.info("Continuing without database initialization")
+        print(f"⚠️ Database initialization failed: {e}")
+        print("🔄 Continuing without database initialization")
     
+    print("🎉 Application startup completed")
     logger.info("Application startup completed")
     
     yield
     
     # Shutdown
+    print("👋 Application shutting down")
     logger.info("Application shutting down")
 
 
