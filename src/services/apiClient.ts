@@ -5,7 +5,10 @@ import { supabase } from '../utils/supabase';
 import { logger } from '../utils/logger';
 
 // Backend URL configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// For Railway: both frontend and backend served from same domain, use empty string for same-origin
+// For local dev: use localhost:8000 when VITE_API_URL is not set
+const API_BASE_URL = import.meta.env.VITE_API_URL || 
+  (import.meta.env.MODE === 'production' ? '' : 'http://localhost:8000');
 const API_PREFIX = '/api/v1';
 
 // Debug logging for environment variables
