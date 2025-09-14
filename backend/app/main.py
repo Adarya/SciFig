@@ -2,8 +2,10 @@
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import time
+import os
 
 from .config.settings import settings
 from .config.database import db_manager
@@ -87,16 +89,22 @@ app.post("/generate_display_figure")(viz_display)
 app.post("/generate_publication_figure")(viz_publication)
 app.post("/generate_code_edit_figure")(viz_code_edit)
 
-
-@app.get("/")
-async def root():
-    """Root endpoint"""
+@app.get("/api")
+async def api_root():
+    """API root endpoint"""
     return {
         "message": f"Welcome to {settings.app_name}",
         "version": settings.app_version,
         "status": "running",
-        "docs": "/docs"
+        "docs": "/docs",
+        "api_version": "v1"
     }
+
+# Serve static files (frontend) if static directory exists
+# This should be last to not override API routes
+static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+if os.path.exists(static_dir):
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
 
 
 @app.get("/health")

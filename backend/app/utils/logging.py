@@ -280,3 +280,4 @@ api_logger = APILogger()
 def get_request_id(request: Request) -> Optional[str]:
     """Extract request ID from request state"""
     return getattr(request.state, 'request_id', None)
+
