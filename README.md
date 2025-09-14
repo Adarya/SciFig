@@ -59,8 +59,12 @@ cd backend
 # Install Python dependencies
 pip install -r requirements.txt
 
+# Setup environment variables (required for database connection)
+cp env.example .env
+# Edit .env file with your Supabase credentials (see Environment Setup below)
+
 # Verify installation works
-python -c "from publication_viz_engine import PublicationVizEngine; print('✅ Backend ready')"
+python -c "import fastapi, pandas, numpy; print('✅ Backend dependencies ready')"
 ```
 
 #### 4. Start Both Services
@@ -78,9 +82,10 @@ yarn dev
 ```bash
 # From backend directory
 cd backend
-python simple_statistical_server.py
+python start.py
 
 # ✅ Backend will be at: http://localhost:8000
+# ✅ API Documentation: http://localhost:8000/docs
 ```
 
 #### 5. Verify Everything Works ✅
@@ -100,30 +105,70 @@ curl -X POST http://localhost:8000/analyze \
   -d '{"data": [{"group": "A", "value": 10}, {"group": "A", "value": 12}, {"group": "B", "value": 15}, {"group": "B", "value": 17}], "outcome_variable": "value", "group_variable": "group", "analysis_type": "independent_ttest"}'
 ```
 
+### 🔧 Environment Setup (Required for Backend)
+
+Before running the backend, you need to configure your environment variables:
+
+#### 1. Create Environment File
+```bash
+cd backend
+cp env.example .env
+```
+
+#### 2. Configure Supabase (Database)
+Edit the `.env` file with your Supabase credentials:
+
+```env
+# Get these from your Supabase dashboard: Settings > API
+SUPABASE_URL="https://your-project-id.supabase.co"
+SUPABASE_ANON_KEY="your-anon-key-here"
+SUPABASE_SERVICE_ROLE_KEY="your-service-role-key-here"
+
+# Generate a secure secret key for JWT tokens
+SECRET_KEY="your-super-secret-jwt-key-here-make-it-long-and-random"
+```
+
+**🆓 Free Supabase Setup:**
+1. Go to [supabase.com](https://supabase.com) and create a free account
+2. Create a new project
+3. Go to Settings > API to find your keys
+4. Copy the URL and keys to your `.env` file
+
 🎉 **You're ready to go!** Upload your data and start creating publication-ready statistical analyses.
 
 ---
 
 ## 📋 What's Included
 
-### 🆕 Current Features (Simple Statistical Server)
+### 🆕 Current Features (Modular FastAPI Backend)
 
-The system uses a **simple statistical server** (`simple_statistical_server.py`) with core functionality:
+The system uses a **modular FastAPI backend** with Supabase database integration:
 
+- **🔐 User Authentication** - JWT-based auth with user roles (Admin, Researcher, Analyst, User)
 - **📊 Statistical Analysis** - T-tests, ANOVA, Chi-square, Mann-Whitney U tests
 - **🧬 Survival Analysis** - Kaplan-Meier survival curves with lifelines
 - **📈 Multivariate Analysis** - Logistic, linear, and Cox regression with forest plots
 - **🎨 Publication Figures** - Journal-specific figure generation (Nature, Science, NEJM, Cell)
+- **📁 Project Management** - Persistent projects and analyses with Supabase database
 - **🔧 Code Editing** - Support for custom figure parameters and code modifications
 - **📱 Display Figures** - Web-optimized figure rendering
+- **👥 User Management** - Admin panel for user and project oversight
 
 ### 📦 Dependencies
 
-The backend uses a minimal set of Python dependencies for statistical analysis:
+The backend uses a comprehensive set of Python dependencies for full-stack functionality:
 
 ```bash
-# Core statistical libraries
-pip install fastapi uvicorn pandas numpy scipy matplotlib seaborn statsmodels lifelines
+# Install all dependencies
+pip install -r requirements.txt
+
+# Core libraries include:
+# - FastAPI + Uvicorn (web framework)
+# - Pandas, NumPy, SciPy (data processing)
+# - Matplotlib, Seaborn (visualization)
+# - Statsmodels, Lifelines (statistical analysis)
+# - Supabase (database integration)
+# - Python-Jose (JWT authentication)
 ```
 
 ### ⚠️ Troubleshooting
@@ -136,6 +181,7 @@ pip install fastapi uvicorn pandas numpy scipy matplotlib seaborn statsmodels li
 
 2. **Backend import errors**
    - Install dependencies: `cd backend && pip install -r requirements.txt`
+   - Check environment file: Make sure `.env` exists with valid Supabase credentials
    - For specific missing packages: `pip install package-name`
 
 3. **Port already in use**
@@ -150,6 +196,8 @@ pip install fastapi uvicorn pandas numpy scipy matplotlib seaborn statsmodels li
    - Make sure you're in the `backend/` directory
    - Check Python version: `python --version` (needs 3.8+)
    - Verify requirements: `python -c "import fastapi, pandas, numpy; print('✅ Core dependencies OK')"`
+   - Check environment file: Ensure `.env` exists with valid Supabase credentials
+   - Database connection: Verify Supabase project is active and keys are correct
 
 ## 🧪 Testing the Server
 
@@ -169,10 +217,13 @@ curl -X POST http://localhost:8000/analyze \
 
 ## 🏗️ Architecture Overview
 
-**Simple Statistical Server (`simple_statistical_server.py`)**:
-- 🎯 **Single Port** (8000): Statistical analysis and figure generation
+**Modular FastAPI Backend (`start.py`)**:
+- 🎯 **Single Port** (8000): RESTful API with comprehensive endpoints
+- 🔐 **Authentication**: JWT-based auth with user roles and session management
 - 📊 **Core Statistics**: T-tests, ANOVA, Chi-square, Mann-Whitney U, survival analysis
-- 📈 **Multivariate Models**: Logistic, linear, and Cox regression
+- 📈 **Multivariate Models**: Logistic, linear, and Cox regression with forest plots
 - 🎨 **Publication Figures**: Journal-ready visualizations with multiple format support
+- 🗄️ **Database Integration**: Persistent data storage with Supabase PostgreSQL
+- 📁 **Project Management**: User projects, analyses, and collaboration features
 - 🖥️ **Web Interface**: Compatible with React frontend via CORS
-- ⚡ **Fast Processing**: Direct Python statistical computation without database overhead
+- ⚡ **Scalable Processing**: Async FastAPI with database-backed persistence
