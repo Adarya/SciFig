@@ -117,6 +117,21 @@ async def api_root():
         "api_version": "v1"
     }
 
+# Debug endpoint to test API routing without auth
+@app.get("/api/v1/debug")
+async def debug_endpoint():
+    """Debug endpoint - no authentication required"""
+    return {
+        "message": "API routing is working!",
+        "timestamp": time.time(),
+        "endpoints_available": [
+            "/api/v1/auth/check",
+            "/api/v1/projects", 
+            "/api/v1/statistical",
+            "/api/v1/visualization"
+        ]
+    }
+
 # Static file serving setup (after all API routes)
 static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
 print(f"🔍 Checking for static files at: {static_dir}")

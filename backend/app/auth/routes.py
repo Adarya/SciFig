@@ -143,6 +143,20 @@ async def check_auth(
     return current_user
 
 
+@router.get("/debug")
+async def debug_auth():
+    """Debug auth endpoint - no authentication required"""
+    return {
+        "message": "Auth router is working!",
+        "available_endpoints": [
+            "/auth/signup",
+            "/auth/login", 
+            "/auth/check",
+            "/auth/logout"
+        ]
+    }
+
+
 @router.post("/logout")
 async def logout(
     current_user: UserResponse = Depends(get_current_active_user),
