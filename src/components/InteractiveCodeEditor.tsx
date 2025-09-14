@@ -75,7 +75,7 @@ export const InteractiveCodeEditor: React.FC<InteractiveCodeEditorProps> = ({
     setError(null);
 
     try {
-      const response = await fetch('http://localhost:8000/generate_code_edit_figure', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/generate_code_edit_figure`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -148,7 +148,7 @@ export const InteractiveCodeEditor: React.FC<InteractiveCodeEditorProps> = ({
       
       // For non-PNG formats, regenerate with the backend
       if (format !== 'png') {
-        const response = await fetch('http://localhost:8000/generate_code_edit_figure', {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/generate_code_edit_figure`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
