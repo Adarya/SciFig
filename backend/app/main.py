@@ -108,17 +108,40 @@ async def api_root():
         "api_version": "v1"
     }
 
-# Simple root endpoint for API info
-@app.get("/", include_in_schema=False)
-async def root():
-    """Root endpoint"""
-    return {
-        "message": f"Welcome to {settings.app_name}",
-        "version": settings.app_version,
-        "status": "running",
-        "docs": "/docs",
-        "health": "/health"
-    }
+# Check for static files and conditionally set up serving
+static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+
+if os.path.exists(static_dir) and os.path.exists(os.path.join(static_dir, "index.html")):
+    # Production mode - serve frontend + API
+    
+    # Mount static assets first  
+    assets_dir = os.path.join(static_dir, "assets")
+    if os.path.exists(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+    
+    # Serve favicon and other root-level static files
+    @app.get("/vite.svg", include_in_schema=False)
+    async def favicon():
+        return FileResponse(os.path.join(static_dir, "vite.svg"))
+    
+    print(f"✅ Static files found at {static_dir}, serving frontend + API")
+    
+else:
+    # Development mode - API only
+    print(f"🔧 No static files at {static_dir}, API-only mode")
+    
+    @app.get("/", include_in_schema=False) 
+    async def root_dev():
+        """Root endpoint - development mode""" 
+        return {
+            "message": f"Welcome to {settings.app_name}",
+            "version": settings.app_version,
+            "status": "running", 
+            "mode": "api_only",
+            "frontend": "not_built", 
+            "docs": "/docs",
+            "health": "/health"
+        }
 
 
 @app.get("/health")
@@ -282,6 +305,26 @@ async def readiness_check():
             raise HTTPException(status_code=503, detail="Service not ready - database unavailable")
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Service not ready: {str(e)}")
+
+
+# SPA catch-all routes (MUST BE LAST - after all API routes)
+if os.path.exists(static_dir) and os.path.exists(os.path.join(static_dir, "index.html")):
+    
+    @app.get("/", include_in_schema=False)
+    async def serve_frontend_root():
+        """Serve the frontend React app at root"""
+        return FileResponse(os.path.join(static_dir, "index.html"))
+    
+    @app.get("/{path:path}", include_in_schema=False)
+    async def spa_catch_all(path: str):
+        """SPA catch-all - serve index.html for all unmatched routes"""
+        # Check if it's a specific static file first
+        file_path = os.path.join(static_dir, path)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        
+        # For everything else, serve index.html (React Router will handle it)
+        return FileResponse(os.path.join(static_dir, "index.html"))
 
 
 if __name__ == "__main__":
