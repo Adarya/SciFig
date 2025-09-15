@@ -90,13 +90,50 @@ app.add_middleware(
 app.add_middleware(RequestLoggingMiddleware)
 
 # Include routers with API v1 prefix
-app.include_router(auth_router, prefix="/api/v1")
-app.include_router(statistical_router, prefix="/api/v1")
-app.include_router(visualization_router, prefix="/api/v1")
-app.include_router(projects_router, prefix="/api/v1")
-app.include_router(analyses_router, prefix="/api/v1")
-app.include_router(figure_analysis_router, prefix="/api/v1")
-app.include_router(admin_router, prefix="/api/v1")
+print("🔧 Loading API routers...")
+try:
+    app.include_router(auth_router, prefix="/api/v1")
+    print("✅ Auth router loaded")
+except Exception as e:
+    print(f"❌ Auth router failed: {e}")
+
+try:
+    app.include_router(statistical_router, prefix="/api/v1")
+    print("✅ Statistical router loaded")
+except Exception as e:
+    print(f"❌ Statistical router failed: {e}")
+
+try:
+    app.include_router(visualization_router, prefix="/api/v1")
+    print("✅ Visualization router loaded")
+except Exception as e:
+    print(f"❌ Visualization router failed: {e}")
+
+try:
+    app.include_router(projects_router, prefix="/api/v1")
+    print("✅ Projects router loaded")
+except Exception as e:
+    print(f"❌ Projects router failed: {e}")
+
+try:
+    app.include_router(analyses_router, prefix="/api/v1")
+    print("✅ Analyses router loaded")
+except Exception as e:
+    print(f"❌ Analyses router failed: {e}")
+
+try:
+    app.include_router(figure_analysis_router, prefix="/api/v1")
+    print("✅ Figure analysis router loaded")
+except Exception as e:
+    print(f"❌ Figure analysis router failed: {e}")
+
+try:
+    app.include_router(admin_router, prefix="/api/v1")
+    print("✅ Admin router loaded")
+except Exception as e:
+    print(f"❌ Admin router failed: {e}")
+
+print("🚀 Router loading complete")
 
 # Backward compatibility routes for existing frontend
 app.post("/analyze")(stat_analyze)
@@ -130,6 +167,16 @@ async def debug_endpoint():
             "/api/v1/statistical",
             "/api/v1/visualization"
         ]
+    }
+
+# Direct test of projects endpoint without router (for debugging)
+@app.get("/api/v1/projects-test")
+async def test_projects_direct():
+    """Direct projects test endpoint - no authentication required"""
+    return {
+        "message": "Direct projects endpoint works!",
+        "note": "This proves the /api/v1/ routing works",
+        "actual_projects_endpoint": "/api/v1/projects should work too"
     }
 
 # Static file serving setup (after all API routes)
