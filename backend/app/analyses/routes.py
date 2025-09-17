@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/", response_model=AnalysisListResponse)
+@router.get("", response_model=AnalysisListResponse)  # Handle both with and without trailing slash
 async def list_user_analyses(
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(50, ge=1, le=100, description="Items per page"),
@@ -94,6 +95,7 @@ async def list_user_analyses(
 
 
 @router.post("/", response_model=AnalysisResponse)
+@router.post("", response_model=AnalysisResponse)  # Handle both with and without trailing slash
 async def create_analysis(
     analysis_data: AnalysisCreate,
     current_user: UserResponse = Depends(get_current_active_user),

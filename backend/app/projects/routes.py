@@ -23,6 +23,7 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 # =====================================
 
 @router.get("/", response_model=ProjectListResponse)
+@router.get("", response_model=ProjectListResponse)  # Handle both with and without trailing slash
 async def list_projects(
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(50, ge=1, le=100, description="Items per page"),
@@ -98,6 +99,7 @@ async def list_projects(
 
 
 @router.post("/", response_model=ProjectResponse)
+@router.post("", response_model=ProjectResponse)  # Handle both with and without trailing slash
 async def create_project(
     project_data: ProjectCreate,
     current_user: UserResponse = Depends(get_current_active_user),
