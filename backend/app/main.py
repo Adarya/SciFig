@@ -112,8 +112,11 @@ except Exception as e:
 try:
     app.include_router(projects_router, prefix="/api/v1")
     print("✅ Projects router loaded")
+    print(f"   └─ Routes: {[route.path for route in projects_router.routes]}")
 except Exception as e:
     print(f"❌ Projects router failed: {e}")
+    import traceback
+    print(f"   └─ Traceback: {traceback.format_exc()}")
 
 try:
     app.include_router(analyses_router, prefix="/api/v1")
@@ -158,9 +161,27 @@ async def api_root():
 @app.get("/api/v1/debug")
 async def debug_endpoint():
     """Debug endpoint - no authentication required"""
+    import inspect
+    
+    # Get all registered routes
+    routes_info = []
+    for route in app.routes:
+        if hasattr(route, 'path') and hasattr(route, 'methods'):
+            routes_info.append({
+                "path": route.path,
+                "methods": list(route.methods),
+                "name": getattr(route, 'name', 'unknown')
+            })
+    
     return {
         "message": "API routing is working!",
         "timestamp": time.time(),
+        "router_status": {
+            "projects_router_loaded": any(r['path'].startswith('/api/v1/projects') for r in routes_info),
+            "auth_router_loaded": any(r['path'].startswith('/api/v1/auth') for r in routes_info),
+            "total_routes": len(routes_info)
+        },
+        "all_routes": [r for r in routes_info if r['path'].startswith('/api/v1/')],
         "endpoints_available": [
             "/api/v1/auth/check",
             "/api/v1/projects", 
@@ -178,6 +199,25 @@ async def test_projects_direct():
         "note": "This proves the /api/v1/ routing works",
         "actual_projects_endpoint": "/api/v1/projects should work too"
     }
+
+# Test authentication dependencies
+@app.get("/api/v1/auth-test")
+async def test_auth_dependencies():
+    """Test if authentication dependencies can be loaded"""
+    try:
+        from .auth.dependencies import get_current_active_user
+        from .config.database import get_db_client
+        return {
+            "message": "Auth dependencies loaded successfully",
+            "dependencies": ["get_current_active_user", "get_db_client"],
+            "status": "ok"
+        }
+    except Exception as e:
+        return {
+            "message": "Auth dependencies failed to load",
+            "error": str(e),
+            "status": "error"
+        }
 
 # Static file serving setup (after all API routes)
 static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
@@ -198,12 +238,35 @@ if os.path.exists(static_dir) and os.path.exists(os.path.join(static_dir, "index
         favicon_path = os.path.join(static_dir, "favicon.ico")
         if os.path.exists(favicon_path):
             return FileResponse(favicon_path)
-        # Fallback to vite.svg
-        return FileResponse(os.path.join(static_dir, "vite.svg"))
+        
+        # Fallback to vite.svg if it exists
+        vite_svg_path = os.path.join(static_dir, "vite.svg")
+        if os.path.exists(vite_svg_path):
+            return FileResponse(vite_svg_path)
+            
+        # Return a simple SciFig icon as fallback
+        from fastapi.responses import Response
+        fallback_svg = '''<?xml version="1.0" encoding="UTF-8"?>
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="16" cy="16" r="14" fill="#3B82F6"/>
+    <text x="16" y="20" text-anchor="middle" fill="white" font-family="Arial" font-size="12" font-weight="bold">SF</text>
+</svg>'''
+        return Response(content=fallback_svg, media_type="image/svg+xml")
         
     @app.api_route("/vite.svg", methods=["GET", "HEAD"], include_in_schema=False)
     async def vite_logo():
-        return FileResponse(os.path.join(static_dir, "vite.svg"))
+        vite_svg_path = os.path.join(static_dir, "vite.svg")
+        if os.path.exists(vite_svg_path):
+            return FileResponse(vite_svg_path)
+        
+        # Return a simple SciFig logo SVG as fallback
+        from fastapi.responses import Response
+        fallback_svg = '''<?xml version="1.0" encoding="UTF-8"?>
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="16" cy="16" r="14" fill="#3B82F6"/>
+    <text x="16" y="20" text-anchor="middle" fill="white" font-family="Arial" font-size="12" font-weight="bold">SF</text>
+</svg>'''
+        return Response(content=fallback_svg, media_type="image/svg+xml")
 
 else:
     print(f"🔧 No static files found - API-only mode")
