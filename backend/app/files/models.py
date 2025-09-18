@@ -9,13 +9,30 @@ class DatasetResponse(BaseModel):
     """Model for dataset response"""
     id: str
     name: str
-    filename: str
+    file_name: str
     file_size: int
-    columns: List[str]
-    rows: int
-    created_at: datetime
+    columns_info: List[str]
+    row_count: int
+    upload_date: datetime
     user_id: str
     metadata: Dict[str, Any] = {}
+    
+    # Compatibility properties for frontend
+    @property
+    def filename(self) -> str:
+        return self.file_name
+    
+    @property 
+    def columns(self) -> List[str]:
+        return self.columns_info
+    
+    @property
+    def rows(self) -> int:
+        return self.row_count
+        
+    @property
+    def created_at(self) -> datetime:
+        return self.upload_date
 
 
 class DatasetListResponse(BaseModel):

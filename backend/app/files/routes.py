@@ -106,17 +106,18 @@ async def upload_file(
             )
         
         # Store dataset metadata in database
+        # Note: Store file_path in metadata since it's not a direct column
+        metadata['file_path'] = file_path
+        
         dataset_data = {
             'id': file_id,
             'name': os.path.splitext(file.filename)[0],
-            'filename': file.filename,
+            'file_name': file.filename,
             'file_size': len(content),
-            'columns': columns,
-            'rows': rows,
+            'columns_info': columns,
+            'row_count': rows,
             'user_id': current_user.id,
-            'metadata': metadata,
-            'file_path': file_path,
-            'upload_date': datetime.utcnow().isoformat()
+            'metadata': metadata
         }
         
         response = db.table('datasets').insert(dataset_data).execute()
@@ -135,11 +136,11 @@ async def upload_file(
         dataset_response = DatasetResponse(
             id=dataset['id'],
             name=dataset['name'],
-            filename=dataset['filename'],
+            file_name=dataset['file_name'],
             file_size=dataset['file_size'],
-            columns=dataset['columns'],
-            rows=dataset['rows'],
-            created_at=dataset['upload_date'],
+            columns_info=dataset['columns_info'],
+            row_count=dataset['row_count'],
+            upload_date=dataset['upload_date'],
             user_id=dataset['user_id'],
             metadata=dataset['metadata']
         )
@@ -192,11 +193,11 @@ async def list_datasets(
             datasets.append(DatasetResponse(
                 id=dataset['id'],
                 name=dataset['name'],
-                filename=dataset['filename'],
+                file_name=dataset['file_name'],
                 file_size=dataset['file_size'],
-                columns=dataset['columns'],
-                rows=dataset['rows'],
-                created_at=dataset['upload_date'],
+                columns_info=dataset['columns_info'],
+                row_count=dataset['row_count'],
+                upload_date=dataset['upload_date'],
                 user_id=dataset['user_id'],
                 metadata=dataset.get('metadata', {})
             ))
@@ -238,11 +239,11 @@ async def get_dataset(
         return DatasetResponse(
             id=dataset['id'],
             name=dataset['name'],
-            filename=dataset['filename'],
+            file_name=dataset['file_name'],
             file_size=dataset['file_size'],
-            columns=dataset['columns'],
-            rows=dataset['rows'],
-            created_at=dataset['upload_date'],
+            columns_info=dataset['columns_info'],
+            row_count=dataset['row_count'],
+            upload_date=dataset['upload_date'],
             user_id=dataset['user_id'],
             metadata=dataset.get('metadata', {})
         )
