@@ -17,7 +17,7 @@ export interface DownloadRequest {
 }
 
 export class BackendDownloader {
-  private static readonly BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  private static readonly BACKEND_URL = import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'production' ? '' : 'http://localhost:8000');
 
   static async downloadPublicationFigure(request: DownloadRequest): Promise<void> {
     try {

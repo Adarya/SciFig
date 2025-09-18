@@ -102,7 +102,7 @@ export const PythonFigureDisplay: React.FC<PythonFigureDisplayProps> = ({
         
         // Choose appropriate endpoint based on plot type
         if (plotType === 'volcano') {
-          response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/visualization/generate_volcano_plot`, {
+          response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'production' ? '' : 'http://localhost:8000')}/api/v1/visualization/generate_volcano_plot`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -119,7 +119,7 @@ export const PythonFigureDisplay: React.FC<PythonFigureDisplayProps> = ({
             })
           });
         } else if (plotType === 'heatmap') {
-          response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/visualization/generate_heatmap`, {
+          response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'production' ? '' : 'http://localhost:8000')}/api/v1/visualization/generate_heatmap`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -135,7 +135,7 @@ export const PythonFigureDisplay: React.FC<PythonFigureDisplayProps> = ({
             })
           });
         } else if (plotType === 'violin') {
-          response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/visualization/generate_violin_plot`, {
+          response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'production' ? '' : 'http://localhost:8000')}/api/v1/visualization/generate_violin_plot`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -152,7 +152,7 @@ export const PythonFigureDisplay: React.FC<PythonFigureDisplayProps> = ({
             })
           });
         } else if (plotType === 'roc_curve') {
-          response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/visualization/generate_roc_curve`, {
+          response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'production' ? '' : 'http://localhost:8000')}/api/v1/visualization/generate_roc_curve`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -166,7 +166,7 @@ export const PythonFigureDisplay: React.FC<PythonFigureDisplayProps> = ({
         } else {
           // Fallback to display figure for unsupported template types
           console.warn(`Template plot type '${plotType}' not directly supported, using display figure`);
-          response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/generate_display_figure`, {
+          response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'production' ? '' : 'http://localhost:8000')}/generate_display_figure`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -183,7 +183,7 @@ export const PythonFigureDisplay: React.FC<PythonFigureDisplayProps> = ({
         }
       } else {
         // Standard analysis-based generation
-        response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/generate_display_figure`, {
+        response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'production' ? '' : 'http://localhost:8000')}/generate_display_figure`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -230,8 +230,8 @@ export const PythonFigureDisplay: React.FC<PythonFigureDisplayProps> = ({
       if (format !== 'png' || !figureData) {
         // If we have code parameters from the code editor, use the code edit endpoint
         const endpoint = externalCodeParameters ? 
-          `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/generate_code_edit_figure` : 
-          `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/generate_publication_figure`;
+          `${import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'production' ? '' : 'http://localhost:8000')}/generate_code_edit_figure` : 
+          `${import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'production' ? '' : 'http://localhost:8000')}/generate_publication_figure`;
         
         const requestBody = externalCodeParameters ? {
           data,
