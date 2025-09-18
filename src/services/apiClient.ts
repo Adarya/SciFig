@@ -500,7 +500,9 @@ class ApiClient {
         throw new Error(errorMessage);
       }
 
-      return response.json();
+      const result = await response.json();
+      // Backend returns { dataset: Dataset, message: string } but frontend expects just Dataset
+      return result.dataset || result;
     },
 
     getDataset: async (datasetId: string): Promise<Dataset> => {

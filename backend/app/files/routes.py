@@ -300,10 +300,13 @@ async def get_dataset_data(
             else:
                 raise ValueError(f"Unsupported file type: {file_ext}")
             
-            # Convert datetime columns to strings for JSON serialization
+            # Convert problematic columns to strings for JSON serialization
             for col in df.columns:
                 if df[col].dtype == 'datetime64[ns]':
                     df[col] = df[col].astype(str)
+                # Handle NaN values which cause JSON serialization issues
+                elif df[col].dtype == 'object':
+                    df[col] = df[col].fillna('')
             
             total_rows = len(df)
             
@@ -313,8 +316,8 @@ async def get_dataset_data(
             if limit is not None:
                 df = df.head(limit)
             
-            # Convert to records (list of dicts)
-            data = df.to_dict('records')
+            # Convert to records (list of dicts) with NaN handling
+            data = df.fillna('').to_dict('records')
             
             return DatasetDataResponse(
                 data=data,
