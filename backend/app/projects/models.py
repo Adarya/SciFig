@@ -67,6 +67,7 @@ class AnalysisType(str, Enum):
     CHI_SQUARE = "chi_square"
     FISHER_EXACT = "fisher_exact"
     SURVIVAL_ANALYSIS = "survival_analysis"
+    KAPLAN_MEIER = "kaplan_meier"  # Specific survival analysis method
     LINEAR_REGRESSION = "linear_regression"
     LOGISTIC_REGRESSION = "logistic_regression"
     COX_REGRESSION = "cox_regression"
