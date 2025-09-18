@@ -18,6 +18,7 @@ from .projects.routes import router as projects_router
 from .analyses.routes import router as analyses_router
 from .figure_analysis.routes import router as figure_analysis_router
 from .admin.routes import router as admin_router
+from .files.routes import router as files_router
 from .statistical.routes import analyze_data as stat_analyze, analyze_multivariate as stat_multivariate
 from .visualization.routes import (
     generate_display_figure as viz_display,
@@ -135,6 +136,15 @@ try:
     print("✅ Admin router loaded")
 except Exception as e:
     print(f"❌ Admin router failed: {e}")
+
+try:
+    app.include_router(files_router, prefix="/api/v1")
+    print("✅ Files router loaded")
+    print(f"   └─ Routes: {[route.path for route in files_router.routes]}")
+except Exception as e:
+    print(f"❌ Files router failed: {e}")
+    import traceback
+    print(f"   └─ Traceback: {traceback.format_exc()}")
 
 print("🚀 Router loading complete")
 
