@@ -146,6 +146,13 @@ async def generate_publication_figure(
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"ERROR in generate_publication_figure: {str(e)}")
+        print(f"ERROR traceback: {error_traceback}")
+        print(f"Request data: analysis_type={request.analysis_type}, format={request.format}")
+        if hasattr(request, 'data') and request.data:
+            print(f"Data sample: {str(request.data[:2])}")  # Show first 2 rows
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Figure generation failed: {str(e)}"
