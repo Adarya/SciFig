@@ -46,7 +46,8 @@ async def list_user_analyses(
         # This is a compromise to handle the missing project_id column
         if project_id:
             # Get more results to account for filtering, but still limit the query
-            fetch_limit = min(limit * 3, 300)  # Fetch 3x the requested amount, max 300
+            # We need to fetch enough to handle pagination properly
+            fetch_limit = min((offset + limit) * 2, 500)  # Fetch 2x what we need, max 500
             response = query.order('created_at', desc=True).limit(fetch_limit).execute()
             
             # Filter by project_id in memory (smaller dataset now)
@@ -56,9 +57,9 @@ async def list_user_analyses(
                     (analysis.get('parameters', {}).get('project_info', {}).get('project_id') == project_id))
             ]
             
-            # Apply pagination after filtering
-            total = len(filtered_data)
-            paginated_data = filtered_data[:limit]  # Take first 'limit' items since we already filtered
+            # Apply pagination after filtering - now properly handle offset
+            total = len(filtered_data)  # This is still an approximation
+            paginated_data = filtered_data[offset:offset + limit]
         else:
             # No project filter - use efficient database pagination
             response = query.order('created_at', desc=True).range(offset, offset + limit - 1).execute()
