@@ -35,31 +35,38 @@ async def list_user_analyses(
         # Calculate offset
         offset = (page - 1) * limit
         
-        # Build query - skip project_id filter for now due to missing column
+        # Build efficient query with database-level pagination
         query = db.table('analyses').select('*').eq('user_id', current_user.id)
         
         # Add analysis_type filter if provided
         if analysis_type:
             query = query.eq('analysis_type', analysis_type)
         
-        # Get all results first (we'll filter by project_id in memory)
-        response = query.order('created_at', desc=True).execute()
-        
-        # Filter by project_id in memory since column might not exist
-        filtered_data = response.data or []
-        if project_id and filtered_data:
-            # Filter by project_id either from column or parameters
+        # For now, if project_id is provided, we'll get a larger set and filter
+        # This is a compromise to handle the missing project_id column
+        if project_id:
+            # Get more results to account for filtering, but still limit the query
+            fetch_limit = min(limit * 3, 300)  # Fetch 3x the requested amount, max 300
+            response = query.order('created_at', desc=True).limit(fetch_limit).execute()
+            
+            # Filter by project_id in memory (smaller dataset now)
             filtered_data = [
-                analysis for analysis in filtered_data 
+                analysis for analysis in (response.data or [])
                 if (analysis.get('project_id') == project_id or 
                     (analysis.get('parameters', {}).get('project_info', {}).get('project_id') == project_id))
             ]
-        
-        # Apply pagination after filtering
-        total = len(filtered_data)
-        start_idx = offset
-        end_idx = offset + limit
-        paginated_data = filtered_data[start_idx:end_idx]
+            
+            # Apply pagination after filtering
+            total = len(filtered_data)
+            paginated_data = filtered_data[:limit]  # Take first 'limit' items since we already filtered
+        else:
+            # No project filter - use efficient database pagination
+            response = query.order('created_at', desc=True).range(offset, offset + limit - 1).execute()
+            paginated_data = response.data or []
+            
+            # Get count for total (this is an approximation for better performance)
+            count_response = db.table('analyses').select('id', count='exact').eq('user_id', current_user.id).execute()
+            total = count_response.count or 0
         
         analyses = []
         for analysis in paginated_data:
