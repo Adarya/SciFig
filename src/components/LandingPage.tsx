@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { 
   BarChart3, 
   Brain, 
@@ -17,14 +18,15 @@ import { User } from '../services/apiClient';
 
 interface LandingPageProps {
   onLogin: (mode?: 'signin' | 'signup') => void;
-  onNavigate: NavigateFunction;
   user: User | null;
 }
 
-const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onNavigate, user }) => {
+const LandingPage: React.FC<LandingPageProps> = ({ onLogin, user }) => {
+  const navigate = useNavigate();
+
   const handleGetStarted = () => {
     if (user) {
-      onNavigate('dashboard');
+      navigate('/dashboard');
     } else {
       onLogin('signup');
     }
@@ -32,18 +34,18 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onNavigate, user }) 
 
   const handleSignIn = () => {
     if (user) {
-      onNavigate('dashboard');
+      navigate('/dashboard');
     } else {
       onLogin('signin');
     }
   };
 
   const handleDemo = () => {
-    onNavigate('figure-analyzer');
+    navigate('/figure-analyzer');
   };
 
   const handleTryAnalysis = () => {
-    onNavigate('analysis');
+    navigate('/analysis');
   };
 
   return (
@@ -61,7 +63,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onNavigate, user }) 
             <div className="hidden md:flex items-center space-x-8">
               <a href="#features" className="text-gray-700 hover:text-blue-600 transition-colors">Features</a>
               <button 
-                onClick={() => onNavigate('pricing')}
+                onClick={() => navigate('/pricing')}
                 className="text-gray-700 hover:text-blue-600 transition-colors"
               >
                 Pricing
@@ -76,14 +78,14 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onNavigate, user }) 
                 <div className="flex items-center space-x-3">
                   {user.role === 'admin' && (
                     <button 
-                      onClick={() => onNavigate('admin')}
+                      onClick={() => navigate('/admin?admin=true')}
                       className="text-red-600 hover:text-red-700 transition-colors font-medium"
                     >
                       Admin Panel
                     </button>
                   )}
                   <button 
-                    onClick={() => onNavigate('dashboard')}
+                    onClick={() => navigate('/dashboard')}
                     className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                   >
                     Dashboard
@@ -330,7 +332,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onNavigate, user }) 
               {user ? 'Go to Dashboard' : 'Start Free Trial'}
             </button>
             <button 
-              onClick={() => onNavigate('pricing')}
+              onClick={() => navigate('/pricing')}
               className="bg-transparent text-white px-8 py-4 rounded-xl text-lg font-semibold border-2 border-white hover:bg-white hover:text-blue-600 transition-all transform hover:scale-105"
             >
               View Pricing

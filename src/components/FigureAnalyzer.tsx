@@ -1,6 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useDropzone } from 'react-dropzone';
+import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
   Upload, 
@@ -17,19 +18,20 @@ import {
   Zap,
   Sparkles
 } from 'lucide-react';
-import { User } from '../utils/supabase';
 import ImageAnalysisModal from './ImageAnalysisModal';
 import { useUsageLimits } from '../hooks/useUsageLimits';
 import { apiClient } from '../services/apiClient';
+import { useAuth } from '../providers/ApiAuthProvider';
 
 interface FigureAnalyzerProps {
-  onNavigate: NavigateFunction;
-  user?: User | null;
-  onLogin?: (mode?: 'signin' | 'signup') => void;
-  project?: any;
+  // Props removed - using hooks instead
 }
 
-const FigureAnalyzer: React.FC<FigureAnalyzerProps> = ({ onNavigate, user, onLogin, project }) => {
+const FigureAnalyzer: React.FC<FigureAnalyzerProps> = () => {
+  const { projectId } = useParams<{ projectId?: string }>();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [project, setProject] = useState<any>(null);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -60,10 +62,23 @@ const FigureAnalyzer: React.FC<FigureAnalyzerProps> = ({ onNavigate, user, onLog
     disabled: hasReachedLimit
   });
 
-  const handleUpgradeClick = () => {
-    if (onLogin) {
-      onLogin('signup');
+  // Load project data when projectId changes
+  useEffect(() => {
+    if (projectId && user) {
+      const loadProject = async () => {
+        try {
+          const projectData = await apiClient.projects.get(projectId);
+          setProject(projectData);
+        } catch (err) {
+          console.warn('Could not load project:', err);
+        }
+      };
+      loadProject();
     }
+  }, [projectId, user]);
+
+  const handleUpgradeClick = () => {
+    navigate('/');
   };
 
   const handleQuickAnalysis = () => {
@@ -82,7 +97,7 @@ const FigureAnalyzer: React.FC<FigureAnalyzerProps> = ({ onNavigate, user, onLog
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
               <button 
-                onClick={() => onNavigate('landing')}
+                onClick={() => navigate('/')}
                 className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -346,7 +361,7 @@ const FigureAnalyzer: React.FC<FigureAnalyzerProps> = ({ onNavigate, user, onLog
                   Start Free Trial
                 </button>
                 <button 
-                  onClick={() => onNavigate('pricing')}
+                  onClick={() => navigate('/pricing')}
                   className="text-blue-600 hover:text-blue-700 font-medium"
                 >
                   View Pricing →

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { 
   Plus, 
   FileText, 
@@ -14,19 +15,22 @@ import {
   Crown,
   Shield
 } from 'lucide-react';
-import { User } from '../services/apiClient';
 import { useProjects } from '../hooks/useProjects';
 import { logger } from '../utils/logger';
 import { apiClient } from '../services/apiClient';
+import { useAuth } from '../providers/ApiAuthProvider';
 
 interface DashboardProps {
-  user: User;
-  onNavigate: NavigateFunction;
-  onLogout: () => void;
-  onSetProject: (project: any) => void;
+  // Props removed - using hooks instead
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate, onLogout, onSetProject }) => {
+const Dashboard: React.FC<DashboardProps> = () => {
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+  
+  if (!user) {
+    return null; // ProtectedRoute should handle this, but just in case
+  }
   const { projects, loading, error, createProject, refreshProjects } = useProjects();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
@@ -191,7 +195,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate, onLogout, onSet
                 <div className="flex items-center space-x-2">
                   {user.role === 'admin' && (
                     <button 
-                      onClick={() => onNavigate('admin')}
+                      onClick={() => navigate('/admin?admin=true')}
                       className="text-red-500 hover:text-red-700 transition-colors"
                       title="Admin Panel"
                     >
@@ -199,7 +203,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate, onLogout, onSet
                     </button>
                   )}
                   <button 
-                    onClick={onLogout}
+                    onClick={async () => {
+                      try {
+                        await signOut();
+                        navigate('/');
+                      } catch (error) {
+                        console.error('Logout failed:', error);
+                      }
+                    }}
                     className="text-gray-500 hover:text-gray-700"
                     title="Sign out"
                   >
@@ -233,12 +244,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate, onLogout, onSet
                       setIsCreating(true);
                       const projectName = `Data Analysis - ${new Date().toLocaleDateString()}`;
                       const newProject = await createProject(projectName, 'Statistical analysis project');
-                      onSetProject(newProject);
-                      onNavigate('analysis');
+                      navigate(`/analysis/${newProject.id}`);
                     } catch (error) {
                       console.error('Failed to create project:', error);
                       // Navigate anyway for now
-                      onNavigate('analysis');
+                      navigate('/analysis');
                     } finally {
                       setIsCreating(false);
                     }
@@ -255,12 +265,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate, onLogout, onSet
                       setIsCreating(true);
                       const projectName = `Figure Analysis - ${new Date().toLocaleDateString()}`;
                       const newProject = await createProject(projectName, 'Figure analysis project');
-                      onSetProject(newProject);
-                      onNavigate('figure-analyzer');
+                      navigate(`/figure-analyzer/${newProject.id}`);
                     } catch (error) {
                       console.error('Failed to create project:', error);
                       // Navigate anyway for now
-                      onNavigate('figure-analyzer');
+                      navigate('/figure-analyzer');
                     } finally {
                       setIsCreating(false);
                     }
@@ -290,7 +299,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate, onLogout, onSet
                 </p>
                 <div className="flex items-center space-x-4">
                   <button 
-                    onClick={() => onNavigate('pricing')}
+                    onClick={() => navigate('/pricing')}
                     className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors font-medium"
                   >
                     View Plans
@@ -429,33 +438,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate, onLogout, onSet
                         <button 
                           onClick={async () => {
                             try {
-                              // Set the project context
-                              onSetProject(project);
-                              
-                              // Check if project has analyses
-                              const projectStats = await apiClient.projects.getStats(project.id);
-                              
-                              if (projectStats.analyses > 0) {
-                                // Project has analyses, fetch the latest one
-                                const analysesResponse = await apiClient.analyses.list(1, 1, project.id);
-                                if (analysesResponse.analyses.length > 0) {
-                                  const latestAnalysis = analysesResponse.analyses[0];
-                                  // TODO: Navigate to a results view for this analysis
-                                  // For now, navigate to analysis view with project context
-                                  onNavigate('analysis');
-                                } else {
-                                  // No analyses found, start new analysis
-                                  onNavigate('analysis');
-                                }
-                              } else {
-                                // No analyses yet, start new analysis
-                                onNavigate('analysis');
-                              }
+                              // Navigate to analysis with project ID in URL
+                              navigate(`/analysis/${project.id}`);
                             } catch (error) {
-                              console.error('Failed to check project state:', error);
+                              console.error('Failed to navigate:', error);
                               // Fallback to analysis view
-                              onSetProject(project);
-                              onNavigate('analysis');
+                              navigate('/analysis');
                             }
                           }}
                           className="text-blue-600 hover:text-blue-700 font-medium"
@@ -553,7 +541,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate, onLogout, onSet
             >
               <h3 className="text-lg font-bold text-gray-900 mb-4">Quick Start</h3>
               <button 
-                onClick={() => onNavigate('analysis')}
+                onClick={() => navigate('/analysis')}
                 className="w-full bg-blue-50 border-2 border-dashed border-blue-300 rounded-xl p-8 text-center hover:bg-blue-100 transition-colors group"
               >
                 <Upload className="h-12 w-12 text-blue-600 mx-auto mb-3 group-hover:scale-110 transition-transform" />

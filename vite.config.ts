@@ -23,5 +23,11 @@ export default defineConfig(({ mode }) => {
       exclude: ['lucide-react'],
       include: ['buffer'],
     },
+    test: {
+      globals: true,
+      environment: 'jsdom',
+      setupFiles: './src/test/setup.ts',
+      css: true,
+    },
   };
 });

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
   ArrowRight, 
@@ -33,7 +34,6 @@ interface AnalysisSelectionProps {
   disabled?: boolean;
   user?: any;
   onLogin?: (mode?: 'signin' | 'signup') => void;
-  onNavigate?: (view: string) => void;
 }
 
 const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({ 
@@ -47,9 +47,9 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
   onBack,
   disabled,
   user,
-  onLogin,
-  onNavigate
+  onLogin
 }) => {
+  const navigate = useNavigate();
   const [selectedAnalysis, setSelectedAnalysis] = useState('');
   const [naturalLanguageQuery, setNaturalLanguageQuery] = useState('');
   const [isAIProcessing, setIsAIProcessing] = useState(false);
@@ -240,7 +240,7 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
     const selectedConfig = [...recommendedAnalyses, ...otherAnalyses].find(a => a.id === selectedAnalysis);
     
     // For Kaplan-Meier analysis, redirect to dedicated page
-    if (selectedAnalysis === 'kaplan_meier' && onNavigate) {
+    if (selectedAnalysis === 'kaplan_meier') {
       // Store only the configuration (without large data) in sessionStorage
       const analysisConfig = {
         type: selectedAnalysis,
@@ -260,7 +260,7 @@ const AnalysisSelection: React.FC<AnalysisSelectionProps> = ({
       // Store data separately with a temporary global variable (will be cleaned up on page reload)
       (window as any).kaplanMeierData = data.data;
       
-      onNavigate('kaplan-meier');
+      navigate('/kaplan-meier');
       return;
     }
     

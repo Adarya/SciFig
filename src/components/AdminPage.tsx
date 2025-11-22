@@ -28,10 +28,11 @@ import {
   EyeOff
 } from 'lucide-react';
 import { useAuth } from '../providers/ApiAuthProvider';
+import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../services/apiClient';
 
 interface AdminPageProps {
-  onNavigate: NavigateFunction;
+  // Props removed - using hooks instead
 }
 
 interface SystemStats {
@@ -70,7 +71,8 @@ interface User {
   updated_at: string;
 }
 
-const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
+const AdminPage: React.FC<AdminPageProps> = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'usage' | 'analytics' | 'system'>('overview');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -185,7 +187,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
           <h1 className="text-2xl font-bold text-gray-800 mb-2">Authentication Required</h1>
           <p className="text-gray-600 mb-4">Please sign in to access the admin panel.</p>
           <button
-            onClick={() => onNavigate('landing')}
+            onClick={() => navigate('/')}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             Back to Home
@@ -203,7 +205,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
           <h1 className="text-2xl font-bold text-gray-800 mb-2">Access Denied</h1>
           <p className="text-gray-600 mb-4">You need admin privileges to access this page.</p>
           <button
-            onClick={() => onNavigate('dashboard')}
+            onClick={() => navigate('/dashboard')}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             Back to Dashboard
@@ -611,7 +613,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
             <span>Refresh Data</span>
           </button>
           <button
-            onClick={() => onNavigate('dashboard')}
+            onClick={() => navigate('/dashboard')}
             className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
           >
             Back to Dashboard
@@ -647,7 +649,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                 Logged in as: <span className="font-medium">{user.email}</span>
               </div>
               <button
-                onClick={() => onNavigate('dashboard')}
+                onClick={() => navigate('/dashboard')}
                 className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
               >
                 Back to Dashboard

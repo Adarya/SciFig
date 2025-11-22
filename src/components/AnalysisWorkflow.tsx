@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Upload, 
   FileText, 
@@ -20,22 +21,22 @@ import DataPreview from './DataPreview';
 import AnalysisSelection from './AnalysisSelection';
 import ResultsView from './ResultsView';
 import AnalysisProgressIndicator from './AnalysisProgressIndicator';
-import { User } from '../utils/supabase';
 import { Dataset } from '../services/apiClient';
 import { ParsedData } from '../utils/csvParser';
 import { apiClient } from '../services/apiClient';
 import { useUsageLimits } from '../hooks/useUsageLimits';
+import { useAuth } from '../providers/ApiAuthProvider';
 
 interface AnalysisWorkflowProps {
-  onNavigate: NavigateFunction;
-  user?: User | null;
-  onLogin?: (mode?: 'signin' | 'signup') => void;
-  project?: any;
+  // Props removed - using hooks instead
 }
 
 type WorkflowStep = 'upload' | 'preview' | 'analysis' | 'results';
 
-const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, onLogin, project }) => {
+const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = () => {
+  const { projectId } = useParams<{ projectId?: string }>();
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState<'upload' | 'preview' | 'analysis' | 'results'>('upload');
   const [uploadedData, setUploadedData] = useState<ParsedData | null>(null);
   const [uploadedDataset, setUploadedDataset] = useState<any>(null);
@@ -49,29 +50,38 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, o
   const [analysisProgressId, setAnalysisProgressId] = useState<string | null>(null);
 
   // State to track if we're loading an existing project
-  const [loadingProject, setLoadingProject] = useState(!!project); // Start loading if project is provided
+  const [loadingProject, setLoadingProject] = useState(!!projectId);
+  const [project, setProject] = useState<any>(null);
 
   // Use the new usage limits hook
   const { usage, hasReachedLimit, refreshUsage } = useUsageLimits(user, 'statistical_analysis');
   const isFreeTier = !user;
 
-  // Load existing project data when project prop changes
+  // Load project data when projectId changes
   useEffect(() => {
-    if (project && user) {
+    if (projectId && user) {
       loadProjectData();
-    } else if (!project) {
-      // If no project is provided, reset loading state
+    } else if (!projectId) {
       setLoadingProject(false);
+      setProject(null);
     }
-  }, [project, user]);
+  }, [projectId, user]);
 
   const loadProjectData = async () => {
-    if (!project || !user) return;
+    if (!projectId || !user) return;
     
     setLoadingProject(true);
     try {
-      console.log('Loading project data for project:', project.id);
-      const analysesResponse = await apiClient.analyses.list(1, 1, project.id);
+      // First, try to get the project
+      try {
+        const projectData = await apiClient.projects.get(projectId);
+        setProject(projectData);
+      } catch (err) {
+        console.warn('Could not load project:', err);
+      }
+      
+      console.log('Loading project data for project:', projectId);
+      const analysesResponse = await apiClient.analyses.list(1, 1, projectId);
       console.log('Analyses response:', analysesResponse);
 
       if (analysesResponse.analyses.length > 0) {
@@ -313,9 +323,8 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, o
   };
 
   const handleUpgradeClick = () => {
-    if (onLogin) {
-      onLogin('signup');
-    }
+    // Navigate to landing page which will show signup modal if needed
+    navigate('/');
   };
 
   // Show loading screen while project data is being loaded
@@ -402,7 +411,7 @@ const AnalysisWorkflow: React.FC<AnalysisWorkflowProps> = ({ onNavigate, user, o
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
               <button 
-                onClick={() => onNavigate('landing')}
+                onClick={() => navigate('/')}
                 className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
               >
                 <ArrowLeft className="h-4 w-4" />
