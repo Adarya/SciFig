@@ -1,11 +1,9 @@
 // Type definitions for SciFig application
 
-// DEPRECATED: AppState and NavigateFunction types are kept for backward compatibility
-// but are no longer used with React Router. Use React Router's navigation instead.
-// Define AppState type for navigation (deprecated - use React Router paths)
+// Define AppState type for navigation
 declare type AppState = 'landing' | 'dashboard' | 'analysis' | 'figure-analyzer' | 'pricing' | 'admin' | 'kaplan-meier' | 'projects';
 
-// Define navigation function type that accepts AppState (deprecated - use useNavigate from react-router-dom)
+// Define navigation function type that accepts AppState
 declare type NavigateFunction = (view: AppState) => void;
 
 // Extend Window interface to include global variables

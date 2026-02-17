@@ -22,8 +22,8 @@ class Settings(BaseSettings):
     
     # CORS
     allowed_origins: str = Field(
-        default="http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:3000",
-        description="Allowed CORS origins (comma-separated). For production, set ALLOWED_ORIGINS environment variable with your domain(s). Example: https://yourdomain.com,https://app.yourdomain.com"
+        default="http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:3000,https://scifig.up.railway.app,https://*.railway.app",
+        description="Allowed CORS origins (comma-separated)"
     )
     
     # Supabase Configuration

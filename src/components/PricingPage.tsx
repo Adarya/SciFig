@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft,
   Check,
@@ -18,15 +17,13 @@ import {
   Download,
   Globe
 } from 'lucide-react';
-import { useAuth } from '../providers/ApiAuthProvider';
 
 interface PricingPageProps {
+  onNavigate: NavigateFunction;
   onSelectPlan?: (plan: string) => void;
 }
 
-const PricingPage: React.FC<PricingPageProps> = ({ onSelectPlan }) => {
-  const navigate = useNavigate();
-  const { user } = useAuth();
+const PricingPage: React.FC<PricingPageProps> = ({ onNavigate, onSelectPlan }) => {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
 
   const plans = [
@@ -163,12 +160,6 @@ const PricingPage: React.FC<PricingPageProps> = ({ onSelectPlan }) => {
   const handleSelectPlan = (planId: string) => {
     if (onSelectPlan) {
       onSelectPlan(planId);
-    } else if (!user) {
-      // If not logged in and no handler, navigate to landing (which will show signup)
-      navigate('/');
-    } else {
-      // If logged in, navigate to dashboard
-      navigate('/dashboard');
     } else {
       // Default behavior - could integrate with payment processor
       console.log(`Selected plan: ${planId}`);
@@ -182,7 +173,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ onSelectPlan }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <button 
-              onClick={() => navigate('/')}
+              onClick={() => onNavigate('landing')}
               className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
             >
               <ArrowLeft className="h-4 w-4" />
